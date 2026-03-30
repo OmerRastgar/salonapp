@@ -1,0 +1,28 @@
+# Docker data directory
+data/
+
+# Environment files
+.env
+.env.*
+
+# Config files with secrets
+mcp-config.json
+
+# Large data files
+vendors_full.json
+
+# Node and dependencies
+node_modules/
+.pnpm-store/
+**/node_modules/
+**/.pnpm-store/
+
+# Next.js build output
+.next/
+out/
+build/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
