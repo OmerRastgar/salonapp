@@ -88,6 +88,27 @@ describe('Booking Overlap Detection', () => {
       
       expect(hasOverlap).toBe(false);
     });
+
+    test('should correctly identify non-overlap when slot generation logic zeros out milliseconds', () => {
+      // Simulate existing booking cleanly recorded in DB without trailing milliseconds
+      const booking1 = {
+        start_datetime: '2024-01-15T10:00:00.000Z',
+        end_datetime: '2024-01-15T10:30:00.000Z'
+      };
+
+      // Simulate the UI generating an available slot with current milliseconds intentionally cleared
+      const slotStartTime = new Date('2024-01-15T10:30:00.000Z'); // Previous buggy logic left .123 suffix 
+      const slotEndTime = new Date(slotStartTime.getTime() + 30 * 60000); // exactly 11:00:00.000Z
+      
+      const booking2 = {
+        start_datetime: slotStartTime.toISOString(),
+        end_datetime: slotEndTime.toISOString()
+      };
+      
+      const hasOverlap = checkOverlap(booking1, booking2);
+      
+      expect(hasOverlap).toBe(false); // They simply touch, no bleed!
+    });
   });
 
   describe('edge cases', () => {

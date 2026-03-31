@@ -1,34 +1,75 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useState, useEffect, useMemo } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Star, MapPin, Clock, Phone, Mail, Users } from "lucide-react";
+import { Star, MapPin, Clock, Phone, Mail, Users, CheckCircle, Share2 } from "lucide-react";
 import Link from "next/link";
 import { useVendor } from "@/hooks/useDirectus";
 import { EmployeeCard, Employee } from "@/components/employee-card";
 import { ReviewModal } from "@/components/review-modal";
 import { SimpleDirectusService, Vendor as VendorType } from "@/lib/directus-simple";
+import { BreadcrumbEntry, SiteBreadcrumbs } from "@/components/site-breadcrumbs";
 
 export default function VendorPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const slug = params.slug as string;
+  const returnTo = searchParams.get("returnTo");
   
-  const { data: vendor, loading, error } = useVendor(slug);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [employeeRefreshKey, setEmployeeRefreshKey] = useState(0);
+  const { data: vendor, loading, error } = useVendor(slug, refreshKey);
   
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isVendorReviewOpen, setIsVendorReviewOpen] = useState(false);
   const [isEmployeeReviewOpen, setIsEmployeeReviewOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [reviewSuccess, setReviewSuccess] = useState<string | null>(null);
+
+  const handleShare = async () => {
+    const shareUrl = typeof window !== "undefined" ? window.location.href : "";
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: vendor?.name,
+          text: `Check out ${vendor?.name} on Clyp`,
+          url: shareUrl
+        });
+        return;
+      }
+
+      await navigator.clipboard.writeText(shareUrl);
+      setReviewSuccess("Vendor link copied to clipboard.");
+      setTimeout(() => setReviewSuccess(null), 3000);
+    } catch (error) {
+      console.error("Error sharing vendor page:", error);
+      setReviewSuccess("Unable to share right now. Please try again.");
+      setTimeout(() => setReviewSuccess(null), 3000);
+    }
+  };
 
   useEffect(() => {
     if (vendor?.id) {
-      SimpleDirectusService.getEmployees(vendor.id).then(setEmployees);
+      SimpleDirectusService.getVendorEmployees(vendor.id).then(setEmployees);
     }
-  }, [vendor?.id]);
+  }, [vendor?.id, employeeRefreshKey]);
+
+  const breadcrumbs = useMemo(() => {
+    const items: BreadcrumbEntry[] = [{ label: "Home", href: "/" }];
+
+    if (returnTo) {
+      items.push({ label: "Search", href: returnTo });
+    }
+
+    if (vendor?.name) {
+      items.push({ label: vendor.name });
+    }
+    return items;
+  }, [returnTo, vendor?.name]);
 
   if (loading) {
     return (
@@ -53,7 +94,7 @@ export default function VendorPage() {
   }
 
   const formatWorkingHours = () => {
-    if (!vendor.working_hours || vendor.working_hours.length === 0) return null;
+    if (!vendor?.working_hours || vendor.working_hours.length === 0) return null;
     
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     
@@ -67,37 +108,13 @@ export default function VendorPage() {
   };
 
   const workingHours = formatWorkingHours();
-
-  // Mock employees data - in real app, this would come from Directus
-  const mockEmployees = [
-    {
-      id: "emp-001",
-      name: "Sarah Ahmed",
-      specialization: ["Hair Styling", "Coloring"],
-      rating: 4.8,
-      bio: "5+ years of experience in modern hair styling",
-      experience: "5 years experience"
-    },
-    {
-      id: "emp-002", 
-      name: "Ayesha Khan",
-      specialization: ["Makeup", "Bridal"],
-      rating: 4.9,
-      bio: "Specialized in bridal and party makeup",
-      experience: "7 years experience"
-    },
-    {
-      id: "emp-003",
-      name: "Fatima Sheikh", 
-      specialization: ["Nail Art", "Manicure"],
-      rating: 4.7,
-      bio: "Creative nail artist with 3+ years experience",
-      experience: "3 years experience"
-    }
-  ];
+  const bookingBaseHref = `/booking?vendor=${slug}${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ""}`;
 
   return (
     <div className="min-h-screen bg-white">
+      <div className="mx-auto max-w-7xl px-4 pt-6">
+        <SiteBreadcrumbs items={breadcrumbs} />
+      </div>
 
       {/* Vendor Hero Section */}
       <div className="relative">
@@ -160,20 +177,13 @@ export default function VendorPage() {
                   </div>
                   
                   <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="lg"
-                      onClick={() => window.location.href = `tel:${vendor.phone}`}
-                    >
-                      <Phone className="size-4 mr-2" />
-                      Call
-                    </Button>
                     <Button
+                      variant="outline"
                       size="lg"
-                      className="bg-purple-600 hover:bg-purple-700"
-                      onClick={() => router.push(`/booking?vendor=${vendor.slug}`)}
+                      onClick={handleShare}
                     >
-                      Book Appointment
+                      <Share2 className="size-4 mr-2" />
+                      Share
                     </Button>
                   </div>
                 </div>
@@ -181,9 +191,9 @@ export default function VendorPage() {
                 {/* Categories */}
                 {vendor.categories && vendor.categories.length > 0 && (
                   <div className="flex flex-wrap gap-2 mb-4">
-                    {vendor.categories.map(category => (
-                      <Badge key={category.id} variant="secondary">
-                        {category.name}
+                    {vendor.categories.map((vc: any) => (
+                      <Badge key={vc.categories_id?.id || vc.id} variant="secondary">
+                        {vc.categories_id?.name || 'Category'}
                       </Badge>
                     ))}
                   </div>
@@ -215,58 +225,70 @@ export default function VendorPage() {
             {/* Services */}
             <section>
               <h2 className="text-2xl font-bold mb-6">Services</h2>
-              {vendor.services && vendor.services.length > 0 ? (
-                <div className="space-y-4">
-                  {vendor.services
-                    .sort((a, b) => a.sort_order - b.sort_order)
-                    .map(service => (
-                      <Card key={service.id}>
-                        <CardContent className="p-4">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-2">
-                                <h3 className="font-semibold text-lg">{service.name}</h3>
-                                {service.is_popular && (
-                                  <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">
-                                    Popular
-                                  </Badge>
+              {(() => {
+                const allServices = employees.flatMap(e => 
+                  ((e as any).services || []).map((s: any) => ({ ...s, employeeId: e.id, employeeName: e.name }))
+                );
+                
+                if (allServices.length > 0) {
+                  return (
+                    <div className="space-y-4">
+                      {allServices.map((service: any) => (
+                        <Card key={service.id}>
+                          <CardContent className="p-4">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <h3 className="font-semibold text-lg mb-1">{service.name}</h3>
+                                {service.description && (
+                                  <p className="text-gray-600 mb-2">{service.description}</p>
                                 )}
-                              </div>
-                              <p className="text-gray-600 mb-2">{service.description}</p>
-                              <div className="flex items-center gap-4 text-sm text-gray-500">
-                                <div className="flex items-center gap-1">
-                                  <Clock className="size-4" />
-                                  <span>{service.duration} minutes</span>
+                                <div className="flex items-center gap-4 text-sm text-gray-500">
+                                  <div className="flex items-center gap-1">
+                                    <Clock className="size-4" />
+                                    <span>{service.duration_minutes} minutes</span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <Users className="size-4" />
+                                    <span>with {service.employeeName}</span>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                            <div className="text-right ml-4">
-                              <div className="text-2xl font-bold text-purple-600">
-                                Rs.{service.price}
-                              </div>
-                              {service.original_price && service.original_price > service.price && (
-                                <div className="text-sm text-gray-500 line-through">
-                                  Rs.{service.original_price}
+                              <div className="text-right ml-4">
+                                <div className="text-2xl font-bold text-purple-600">
+                                  Rs.{Number(service.price).toLocaleString()}
                                 </div>
-                              )}
-                              <Button 
-                                className="mt-2 w-full" 
-                                size="sm"
-                                onClick={() => {
-                                  router.push(`/booking?vendor=${vendor.slug}&service=${service.id}&employee=${service.vendor_id || ''}`);
-                                }}
-                              >
-                                Book Now
-                              </Button>
+                                <Button 
+                                  className="mt-2 w-full bg-purple-600 hover:bg-purple-700" 
+                                  size="sm"
+                                  onClick={() => {
+                                    const params = new URLSearchParams({
+                                      vendor: vendor.slug,
+                                      employee: service.employeeId,
+                                      service: service.id,
+                                    });
+                                    if (returnTo) {
+                                      params.set("returnTo", returnTo);
+                                    }
+                                    router.push(`/booking?${params.toString()}`);
+                                  }}
+                                >
+                                  Book Now
+                                </Button>
+                              </div>
                             </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                </div>
-              ) : (
-                <p className="text-gray-500">No services available.</p>
-              )}
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  );
+                }
+                
+                return (
+                  <div className="text-center py-10 bg-gray-50 rounded-xl">
+                    <p className="text-gray-500">No services available for this vendor.</p>
+                  </div>
+                );
+              })()}
             </section>
 
             {/* Employees Section */}
@@ -276,8 +298,10 @@ export default function VendorPage() {
                 {employees.length > 0 ? (
                   employees.map((employee) => (
                     <EmployeeCard
-                      key={employee.id}
+                      key={`${employee.id}-${employeeRefreshKey}`}
                       employee={employee}
+                      vendorSlug={slug}
+                      bookingHref={bookingBaseHref}
                       onRate={(emp) => {
                         setSelectedEmployee(emp);
                         setIsEmployeeReviewOpen(true);
@@ -344,7 +368,7 @@ export default function VendorPage() {
               {vendor.reviews && vendor.reviews.length > 0 ? (
                 <div className="space-y-4">
                   {vendor.reviews
-                    .filter(review => review.status === 'published')
+                    .filter(review => review.status === 'published' || review.status === 'active')
                     .slice(0, 5)
                     .map(review => (
                       <Card key={review.id}>
@@ -430,7 +454,13 @@ export default function VendorPage() {
                 <div className="space-y-2">
                   <Button
                     className="w-full bg-purple-600 hover:bg-purple-700"
-                    onClick={() => router.push(`/booking?vendor=${vendor.slug}`)}
+                    onClick={() => {
+                      const params = new URLSearchParams({ vendor: vendor.slug });
+                      if (returnTo) {
+                        params.set("returnTo", returnTo);
+                      }
+                      router.push(`/booking?${params.toString()}`);
+                    }}
                   >
                     Book Appointment
                   </Button>
@@ -466,15 +496,24 @@ export default function VendorPage() {
         title={`Review ${vendor.name}`}
         subtitle="Share your experience with other customers"
         onSubmit={async (data) => {
-          await SimpleDirectusService.createVendorReview({
-            vendor_id: vendor.id,
-            customer_name: data.name,
-            rating: data.rating,
-            comment: data.comment,
-            status: 'published'
-          });
-          // Optionally refresh reviews here
-          window.location.reload();
+          try {
+            await SimpleDirectusService.createVendorReview({
+              vendor_id: vendor.id,
+              customer_name: data.name,
+              rating: data.rating,
+              comment: data.comment,
+              status: 'published'
+            });
+            setReviewSuccess('Vendor review submitted successfully!');
+            setIsVendorReviewOpen(false);
+            // Refresh vendor data to show new review
+            setRefreshKey(prev => prev + 1);
+            // Clear success message after 3 seconds
+            setTimeout(() => setReviewSuccess(null), 3000);
+          } catch (error) {
+            console.error('Error submitting vendor review:', error);
+            setReviewSuccess('Failed to submit review. Please try again.');
+          }
         }}
       />
 
@@ -485,16 +524,39 @@ export default function VendorPage() {
         subtitle={`Rate the service provided by ${selectedEmployee?.name}`}
         onSubmit={async (data) => {
           if (!selectedEmployee) return;
-          await SimpleDirectusService.createEmployeeReview({
-            employee_id: selectedEmployee.id,
-            customer_name: data.name,
-            rating: data.rating,
-            comment: data.comment,
-            status: 'published'
-          });
-          alert("Review submitted successfully!");
+          try {
+            await SimpleDirectusService.createEmployeeReview({
+              employee_id: selectedEmployee.id,
+              customer_name: data.name,
+              rating: data.rating,
+              comment: data.comment,
+              status: 'published'
+            });
+            setReviewSuccess('Employee review submitted successfully!');
+            setIsEmployeeReviewOpen(false);
+            // Refresh employees data to update ratings
+            if (vendor?.id) {
+              // Add small delay to ensure database is updated
+              setTimeout(() => {
+                setEmployeeRefreshKey(prev => prev + 1);
+              }, 500);
+            }
+            // Clear success message after 3 seconds
+            setTimeout(() => setReviewSuccess(null), 3000);
+          } catch (error) {
+            console.error('Error submitting employee review:', error);
+            setReviewSuccess('Failed to submit review. Please try again.');
+          }
         }}
       />
+
+      {/* Success Notification */}
+      {reviewSuccess && (
+        <div className="fixed top-4 right-4 z-[110] flex items-center gap-2 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg shadow-lg">
+          <CheckCircle className="size-5" />
+          <span className="font-medium">{reviewSuccess}</span>
+        </div>
+      )}
     </div>
   );
 }

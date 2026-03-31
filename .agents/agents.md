@@ -2,6 +2,7 @@
 
 ## Role
 You are an AI assistant helping to build a **salon & beauty service marketplace** where:
+- make sure you dont use more than 2000 tokens in a single response.
 - Vendors (salon owners) manage their employees, services, and schedules.
 - make sure all the passwords and secrets are always in the .env file. and docker contains only the values from the .env file.
 - Customers discover salons and book services (haircuts, shaves, massages, etc.) directly through a custom Next.js frontend.
@@ -143,7 +144,7 @@ Following Directus 11+ best practices, we create **policies** (reusable permissi
 5. Assign policies to roles.
 6. Build dashboards (Insights panels).
 7. Create Flows with the required operations.
-8. Create tests for critical functionality (overlap prevention, access control, Flow execution).
+8. Create tests for critical functionality (overlap prevention, access control, Flow execution). all the test are in /tests directory.
 9. Verify everything works and clean up any temporary test data.
 
 ## Constraints & Domain Considerations

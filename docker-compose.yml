@@ -31,14 +31,16 @@ services:
       - marketplace-network
 
   frontend:
-    image: node:20
-    working_dir: /app
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
     environment:
-      - CI=true
-    command: sh -c "npm install -g pnpm && pnpm install --no-frozen-lockfile && pnpm dev"
+      - NEXT_PUBLIC_DIRECTUS_URL=http://localhost:8055
+      - DIRECTUS_INTERNAL_URL=http://directus:8055
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+    depends_on:
+      - directus
     networks:
       - marketplace-network
 

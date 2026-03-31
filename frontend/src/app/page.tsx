@@ -2,48 +2,165 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Search } from "lucide-react";
+import { Search, ChevronDown } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCategories, useLocations } from "@/hooks/useDirectus";
-import { SimpleDirectusService } from "@/lib/directus-simple";
-import Link from "next/link";
+import { useCategories, useSearchLocations } from "@/hooks/useDirectus";
 
 export default function Home() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
-  const [location, setLocation] = useState("Karachi");
+  const [location, setLocation] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [appointmentsCount, setAppointmentsCount] = useState(418036);
+  const [isLocating, setIsLocating] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [activityError, setActivityError] = useState<string | null>(null);
+  const [userLocation, setUserLocation] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
   
-  // Dynamic counter effect
+  // Load the shared live activity count, then persist each increment so all users see the same number move.
   useEffect(() => {
+    let cancelled = false;
+
+    async function loadActivityCount() {
+      try {
+        const response = await fetch("/api/live-activity", { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error("Failed to load live activity");
+        }
+
+        const payload = await response.json();
+        if (!cancelled && Number.isFinite(Number(payload?.appointmentsBooked))) {
+          setAppointmentsCount(Number(payload.appointmentsBooked));
+        }
+      } catch (error) {
+        console.error("Failed to load live activity:", error);
+        if (!cancelled) {
+          setActivityError("Live activity is temporarily unavailable.");
+        }
+      }
+    }
+
+    loadActivityCount();
+
     const interval = setInterval(() => {
-      setAppointmentsCount(prev => prev + Math.floor(Math.random() * 3) + 1);
+      const incrementBy = Math.floor(Math.random() * 3) + 1;
+
+      setAppointmentsCount((prev) => prev + incrementBy);
+
+      fetch("/api/live-activity", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ incrementBy }),
+      })
+        .then(async (response) => {
+          if (!response.ok) {
+            throw new Error("Failed to persist live activity");
+          }
+          return response.json();
+        })
+        .then((payload) => {
+          if (!cancelled && Number.isFinite(Number(payload?.appointmentsBooked))) {
+            setAppointmentsCount(Number(payload.appointmentsBooked));
+            setActivityError(null);
+          }
+        })
+        .catch((error) => {
+          console.error("Failed to persist live activity:", error);
+          if (!cancelled) {
+            setActivityError("Live activity is temporarily unavailable.");
+          }
+        });
     }, 15000); // Update every 15 seconds for a "live" feel
-    return () => clearInterval(interval);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, []);
   
   const { data: categories, loading: categoriesLoading } = useCategories();
-  const { data: locations, loading: locationsLoading } = useLocations();
+  const { data: searchLocations, loading: locationsLoading } = useSearchLocations();
 
-  // Debug logging
-  console.log('Categories:', categories, 'Loading:', categoriesLoading);
-  console.log('Locations:', locations, 'Loading:', locationsLoading);
+  const buildSearchParams = (overrides?: { search?: string; category?: string; location?: string }) => {
+    const params = new URLSearchParams();
+    const nextSearch = overrides?.category ? overrides.search : (overrides?.search ?? searchQuery);
+    const nextCategory = overrides?.category;
+    const nextLocation = overrides?.location ?? location;
+
+    if (nextSearch) params.set("search", nextSearch);
+    if (nextCategory) params.set("category", nextCategory);
+    if (nextLocation && nextLocation !== "__near_me__") {
+      params.set("location", nextLocation);
+    }
+    if (userLocation) {
+      params.set("nearMe", "1");
+      params.set("lat", String(userLocation.latitude));
+      params.set("lng", String(userLocation.longitude));
+    }
+    return params;
+  };
 
   const handleSearch = () => {
-    const params = new URLSearchParams();
-    if (searchQuery) params.set("category", searchQuery);
-    params.set("location", location);
+    const params = buildSearchParams();
     router.push(`/search?${params.toString()}`);
+  };
+
+  const handleUseMyLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationError("Your browser does not support location access.");
+      setLocation("");
+      return;
+    }
+
+    setIsLocating(true);
+    setLocationError(null);
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setUserLocation({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+        setLocation("__near_me__");
+        setIsLocating(false);
+      },
+      () => {
+        setLocationError("Unable to get your location right now.");
+        setLocation("");
+        setUserLocation(null);
+        setIsLocating(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+      }
+    );
   };
 
   const popularCategories = categories?.length > 0 
     ? categories.map((c) => c.name) 
     : ["Hair Salon", "Barber", "Spa", "Nail Salon", "Beauty Salon", "Massage"];
 
-  const cities = locations?.length > 0 
-    ? locations.map((l) => l.name) 
-    : ["Karachi", "Lahore", "Islamabad", "Rawalpindi", "Faisalabad", "Multan"];
+  const dynamicLocations = searchLocations?.length > 0
+    ? searchLocations
+    : [
+        { value: "Karachi", label: "Karachi", city: "Karachi" },
+        { value: "Lahore", label: "Lahore", city: "Lahore" },
+        { value: "Islamabad", label: "Islamabad", city: "Islamabad" },
+        { value: "Rawalpindi", label: "Rawalpindi", city: "Rawalpindi" },
+        { value: "Faisalabad", label: "Faisalabad", city: "Faisalabad" },
+        { value: "Multan", label: "Multan", city: "Multan" },
+      ];
+  const locationOptions = [
+    { value: "", label: "All locations" },
+    { value: "__near_me__", label: isLocating ? "Finding your location..." : "Use my location" },
+    ...dynamicLocations,
+  ];
 
   const filteredSuggestions = popularCategories.filter(cat => 
     cat.toLowerCase().includes(searchQuery.toLowerCase())
@@ -53,20 +170,20 @@ export default function Home() {
     <div className="min-h-screen bg-gradient-to-b from-purple-50 to-white">
 
       {/* Hero Section */}
-      <div className="max-w-4xl mx-auto px-4 py-20 text-center">
-        <h1 className="text-5xl font-bold mb-4">
+      <div className="mx-auto max-w-4xl px-4 py-14 text-center sm:py-20">
+        <h1 className="mb-4 text-4xl font-bold leading-tight sm:text-5xl">
           Discover Beauty & Wellness
           <br />
           Near You
         </h1>
-        <p className="text-xl text-gray-600 mb-12">
+        <p className="mb-12 text-lg text-gray-600 sm:text-xl">
           Book appointments at the best vendors, spas, and barbershops across Pakistan
         </p>
 
 
         <div className="relative max-w-2xl mx-auto mb-12">
-          <div className="bg-white rounded-full shadow-lg p-2 flex items-center gap-2 border border-gray-100">
-            <div className="flex-1 flex items-center gap-2 px-4 relative">
+          <div className="flex flex-col gap-2 rounded-[28px] border border-gray-200/80 bg-white p-2 shadow-[0_18px_45px_-28px_rgba(15,23,42,0.35)] sm:flex-row sm:items-center sm:rounded-full">
+            <div className="relative flex min-w-0 flex-1 items-center gap-2 rounded-2xl px-3 py-1 sm:px-4">
               <Search className="size-5 text-gray-400" />
               <input
                 type="text"
@@ -77,13 +194,13 @@ export default function Home() {
                   setSearchQuery(e.target.value);
                   setShowSuggestions(true);
                 }}
-                className="flex-1 outline-none text-lg py-2"
+                className="min-w-0 flex-1 bg-transparent py-2 text-base outline-none sm:text-lg"
                 onKeyDown={(e) => e.key === "Enter" && handleSearch()}
               />
               
               {/* Autocomplete Dropdown */}
               {showSuggestions && searchQuery && filteredSuggestions.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-gray-100 z-[60] overflow-hidden">
+                <div className="absolute left-0 right-0 top-full z-[60] mt-2 overflow-hidden rounded-xl border border-gray-100 bg-white shadow-xl">
                   {filteredSuggestions.map((suggestion) => (
                     <button
                       key={suggestion}
@@ -91,9 +208,7 @@ export default function Home() {
                       onClick={() => {
                         setSearchQuery(suggestion);
                         setShowSuggestions(false);
-                        const params = new URLSearchParams();
-                        params.set("category", suggestion);
-                        params.set("location", location);
+                        const params = buildSearchParams({ search: suggestion });
                         router.push(`/search?${params.toString()}`);
                       }}
                     >
@@ -104,26 +219,47 @@ export default function Home() {
                 </div>
               )}
             </div>
-            <div className="h-10 w-px bg-gray-200" />
-          <select
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            className="px-4 outline-none text-lg bg-transparent cursor-pointer"
-          >
-            {cities.map((city: string) => (
-              <option key={city} value={city}>
-                {city}
-              </option>
-            ))}
-          </select>
-          <Button 
-            size="lg" 
-            className="rounded-full px-8 bg-purple-600 hover:bg-purple-700 text-white"
-            onClick={handleSearch}
-          >
-            Search
-          </Button>
-        </div>
+            <div className="hidden h-10 w-px bg-gray-200 sm:block" />
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+              <div className="relative w-full sm:w-auto">
+                <select
+                  value={location}
+                  onChange={(e) => {
+                    const nextLocation = e.target.value;
+                    if (nextLocation === "__near_me__") {
+                      handleUseMyLocation();
+                      return;
+                    }
+                    setLocation(nextLocation);
+                    setLocationError(null);
+                    setUserLocation(null);
+                  }}
+                  className="w-full appearance-none rounded-2xl border border-transparent bg-gray-50 px-4 py-3 pr-10 text-base text-gray-700 outline-none transition focus:border-purple-200 focus:bg-white sm:min-w-[200px] sm:bg-transparent sm:py-2 sm:text-lg"
+                >
+                  {locationOptions.map((option: any) => {
+                    const value = typeof option === "string" ? option : option.value;
+                    const label = typeof option === "string" ? option : option.label;
+                    return (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                    );
+                  })}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
+              </div>
+              <Button 
+                size="lg" 
+                className="w-full rounded-2xl bg-purple-600 px-6 text-white shadow-sm hover:bg-purple-700 sm:w-auto sm:rounded-full sm:px-8"
+                onClick={handleSearch}
+              >
+                Search
+              </Button>
+            </div>
+          </div>
+          {locationError && (
+            <p className="px-2 pt-3 text-left text-sm text-red-600">{locationError}</p>
+          )}
 
         {/* Live Appointment Counter */}
         <div className="flex flex-col items-center mt-8 mb-12">
@@ -135,13 +271,16 @@ export default function Home() {
             <span className="text-xs font-bold text-green-600 uppercase tracking-widest">Live Activity</span>
           </div>
           <div className="bg-white border-2 border-purple-100 rounded-2xl p-6 shadow-md inline-block relative z-10">
-            <div className="flex items-baseline gap-3">
-              <span className="text-4xl font-black text-purple-900 tracking-tighter tabular-nums">
+            <div className="flex flex-wrap items-baseline justify-center gap-3">
+              <span className="text-3xl font-black tracking-tighter text-purple-900 tabular-nums sm:text-4xl">
                 {appointmentsCount.toLocaleString()}
               </span>
-              <span className="text-gray-600 font-semibold uppercase text-xs tracking-wider">appointments Booked</span>
+              <span className="text-xs font-semibold uppercase tracking-wider text-gray-600">appointments Booked</span>
             </div>
           </div>
+          {activityError && (
+            <p className="mt-2 text-xs text-gray-500">{activityError}</p>
+          )}
         </div>
       </div>
 
@@ -154,12 +293,10 @@ export default function Home() {
                 key={category}
                 onClick={() => {
                   setSearchQuery(category);
-                  const params = new URLSearchParams();
-                  params.set("category", category);
-                  params.set("location", location);
+                  const params = buildSearchParams({ category });
                   router.push(`/search?${params.toString()}`);
                 }}
-                className="px-4 py-2 bg-white border border-gray-200 rounded-full hover:border-purple-300 hover:bg-purple-50 transition-colors"
+                className="rounded-full border border-gray-200 bg-white px-4 py-2 shadow-sm transition hover:border-purple-300 hover:bg-purple-50"
               >
                 {category}
               </button>
@@ -168,22 +305,29 @@ export default function Home() {
         </div>
 
         {/* Cities Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 max-w-3xl mx-auto">
-          {cities.map((city: string) => (
+        <div className="mx-auto grid max-w-3xl grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
+          {locationOptions
+            .filter((option: any) => {
+              const value = typeof option === "string" ? option : option.value;
+              return value && value !== "__near_me__";
+            })
+            .map((option: any) => {
+            const value = typeof option === "string" ? option : option.value;
+            const label = typeof option === "string" ? option : option.label;
+            return (
             <button
-              key={city}
+              key={value}
               onClick={() => {
-                const params = new URLSearchParams();
-                if (searchQuery) params.set("category", searchQuery);
-                params.set("location", city);
+                const params = buildSearchParams({ location: value });
                 router.push(`/search?${params.toString()}`);
               }}
-              className="p-6 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-100"
+              className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
             >
-              <h3 className="font-semibold text-lg mb-1">{city}</h3>
+              <h3 className="font-semibold text-lg mb-1">{label}</h3>
               <p className="text-sm text-gray-600">Explore venues</p>
             </button>
-          ))}
+            );
+          })}
         </div>
       </div>
 

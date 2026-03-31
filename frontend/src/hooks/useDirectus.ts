@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
-import { SimpleDirectusService, Vendor, Category, Location } from '@/lib/directus-simple';
+import { SimpleDirectusService, Vendor, Category, Location, SearchLocationOption } from '@/lib/directus-simple';
 
 // Custom hook for fetching vendors
 export function useVendors(options: {
   category?: string;
   location?: string;
+  search?: string;
+  latitude?: number;
+  longitude?: number;
   featured?: boolean;
   limit?: number;
   offset?: number;
@@ -31,13 +34,13 @@ export function useVendors(options: {
     }
 
     fetchVendors();
-  }, [options.category, options.location, options.featured, options.limit, options.offset]);
+  }, [options.category, options.location, options.search, options.latitude, options.longitude, options.featured, options.limit, options.offset]);
 
   return { data, loading, error, meta };
 }
 
 // Custom hook for fetching a single vendor by slug
-export function useVendor(slug: string) {
+export function useVendor(slug: string, refreshKey?: number) {
   const [data, setData] = useState<Vendor | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +66,7 @@ export function useVendor(slug: string) {
     }
 
     fetchVendor();
-  }, [slug]);
+  }, [slug, refreshKey]);
 
   return { data, loading, error };
 }
@@ -122,6 +125,32 @@ export function useLocations() {
   return { data, loading, error };
 }
 
+export function useSearchLocations() {
+  const [data, setData] = useState<SearchLocationOption[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchSearchLocations() {
+      try {
+        setLoading(true);
+        setError(null);
+        const locations = await SimpleDirectusService.getSearchLocations();
+        setData(locations);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch search locations');
+        setData([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchSearchLocations();
+  }, []);
+
+  return { data, loading, error };
+}
+
 // Custom hook for searching vendors
 export function useSearch(query: string, filters: {
   category?: string;
@@ -145,9 +174,10 @@ export function useSearch(query: string, filters: {
         setLoading(true);
         setError(null);
         const results = await SimpleDirectusService.getVendors({
-        category: filters.category,
-        location: filters.location
-      });
+          search: query,
+          category: filters.category,
+          location: filters.location
+        });
       setData(results.data);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to search vendors');

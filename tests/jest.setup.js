@@ -6,7 +6,7 @@ jest.setTimeout(30000);
 
 // Test database configuration
 global.testConfig = {
-  directusUrl: process.env.PUBLIC_URL || 'http://localhost:8055',
+  directusUrl: process.env.DIRECTUS_URL || 'http://localhost:8055',
   adminEmail: process.env.ADMIN_EMAIL,
   adminPassword: process.env.ADMIN_PASSWORD,
   key: process.env.KEY,

@@ -25,6 +25,7 @@ export interface Vendor {
   categories?: Category[];
   working_hours?: WorkingHour[];
   reviews?: Review[];
+  distance_km?: number;
 }
 
 export interface Service {
@@ -50,6 +51,13 @@ export interface Location {
   id: string;
   name: string;
   slug: string;
+}
+
+export interface SearchLocationOption {
+  value: string;
+  label: string;
+  city: string;
+  area?: string;
 }
 
 export interface WorkingHour {
@@ -79,10 +87,14 @@ export interface Employee {
   name: string;
   email?: string;
   photo?: string;
+  image?: string;
   bio?: string;
   timezone?: string;
   status: string;
   sort_order?: number;
+  rating?: number;
+  reviews_count?: number;
+  vendor?: Vendor;
 }
 
 export interface EmployeeService {
@@ -128,6 +140,9 @@ export class SimpleDirectusService {
   static async getVendors(options: {
     category?: string;
     location?: string;
+    search?: string;
+    latitude?: number;
+    longitude?: number;
     featured?: boolean;
     limit?: number;
     offset?: number;
@@ -140,11 +155,43 @@ export class SimpleDirectusService {
       };
 
       if (options.location) {
-        filters.city = { _icontains: options.location };
+        const normalizedLocation = options.location.trim();
+        const [areaPartRaw, cityPartRaw] = normalizedLocation.includes('||')
+          ? normalizedLocation.split('||')
+          : normalizedLocation.split(',').map((part) => part.trim());
+        const areaPart = areaPartRaw?.trim();
+        const cityPart = cityPartRaw?.trim();
+
+        if (areaPart && cityPart) {
+          filters._and = [
+            ...(filters._and || []),
+            { city: { _icontains: cityPart } },
+            { area: { _icontains: areaPart } }
+          ];
+        } else {
+          filters._and = [
+            ...(filters._and || []),
+            {
+              _or: [
+                { city: { _icontains: normalizedLocation } },
+                { area: { _icontains: normalizedLocation } }
+              ]
+            }
+          ];
+        }
       }
 
       if (options.featured) {
         filters.is_featured = { _eq: true };
+      }
+
+      if (options.search) {
+        filters._or = [
+          { name: { _icontains: options.search } },
+          { description: { _icontains: options.search } },
+          { area: { _icontains: options.search } },
+          { city: { _icontains: options.search } }
+        ];
       }
 
       // Category filtering: use two-step approach to avoid M2M deep-filter 403 errors.
@@ -178,13 +225,126 @@ export class SimpleDirectusService {
       const query: any = {
         filter: filters,
         // Fetch vendor fields + junction categories (no 'services' — services belong to employees)
-        fields: ['*', 'categories.categories_id.*'],
+        fields: ['*', 'categories.categories_id.*', 'working_hours.*', 'services.*'],
         limit: options.limit || 10,
         offset: options.offset || 0
       };
 
       const response = await directus.request(readItems('vendors', query));
-      return { data: response as Vendor[], meta: null };
+      const vendors = response as Vendor[];
+
+      if (vendors.length === 0) {
+        return { data: [], meta: null };
+      }
+
+      const vendorIds = vendors.map((vendor) => vendor.id);
+
+      const [workingHoursResponse, employeesResponse] = await Promise.all([
+        directus.request(
+          readItems('working_hours', {
+            filter: { vendor_id: { _in: vendorIds } },
+            fields: ['*'],
+            limit: 500
+          })
+        ),
+        directus.request(
+          readItems('employees', {
+            filter: {
+              vendor_id: { _in: vendorIds },
+              status: { _eq: 'active' }
+            },
+            fields: ['id', 'vendor_id'],
+            limit: 500
+          })
+        )
+      ]);
+
+      const workingHours = workingHoursResponse as WorkingHour[];
+      const employees = employeesResponse as Pick<Employee, 'id' | 'vendor_id'>[];
+      const employeeIds = employees.map((employee) => employee.id);
+
+      let employeeServices: EmployeeService[] = [];
+      if (employeeIds.length > 0) {
+        const employeeServicesResponse = await directus.request(
+          readItems('employee_services', {
+            filter: {
+              employee_id: { _in: employeeIds },
+              is_active: { _eq: true }
+            },
+            fields: ['id', 'employee_id', 'name', 'price', 'is_active', 'description', 'duration_minutes', 'sort_order'],
+            sort: ['sort_order'],
+            limit: 1000
+          })
+        );
+        employeeServices = employeeServicesResponse as EmployeeService[];
+      }
+
+      const employeeVendorMap = new Map(employees.map((employee) => [employee.id, employee.vendor_id]));
+
+      const servicesByVendor = new Map<string, Service[]>();
+      employeeServices.forEach((service) => {
+        const vendorId = employeeVendorMap.get(service.employee_id);
+        if (!vendorId) {
+          return;
+        }
+
+        const existing = servicesByVendor.get(vendorId) || [];
+        const alreadyIncluded = existing.some((item) => item.name === service.name);
+        if (alreadyIncluded) {
+          return;
+        }
+
+        existing.push({
+          id: service.id,
+          vendor_id: vendorId,
+          name: service.name,
+          description: service.description || '',
+          duration: service.duration_minutes,
+          price: Number(service.price),
+          is_popular: false,
+          status: service.is_active ? 'active' : 'inactive',
+          sort_order: service.sort_order || 0
+        });
+        servicesByVendor.set(vendorId, existing);
+      });
+
+      let enrichedVendors = vendors.map((vendor) => ({
+        ...vendor,
+        working_hours: workingHours.filter((hours) => hours.vendor_id === vendor.id),
+        services: (servicesByVendor.get(vendor.id) || []).slice(0, 3)
+      }));
+
+      if (typeof options.latitude === 'number' && typeof options.longitude === 'number') {
+        const toRadians = (value: number) => (value * Math.PI) / 180;
+        const haversineDistance = (vendor: Vendor) => {
+          const lat = Number(vendor.latitude);
+          const lng = Number(vendor.longitude);
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+            return Number.POSITIVE_INFINITY;
+          }
+
+          const earthRadiusKm = 6371;
+          const dLat = toRadians(lat - options.latitude!);
+          const dLng = toRadians(lng - options.longitude!);
+          const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(toRadians(options.latitude!)) *
+              Math.cos(toRadians(lat)) *
+              Math.sin(dLng / 2) *
+              Math.sin(dLng / 2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          return earthRadiusKm * c;
+        };
+
+        enrichedVendors = enrichedVendors
+          .map((vendor) => ({
+            ...vendor,
+            distance_km: haversineDistance(vendor)
+          }))
+          .sort((left, right) => (left.distance_km || Number.POSITIVE_INFINITY) - (right.distance_km || Number.POSITIVE_INFINITY));
+      }
+
+      return { data: enrichedVendors, meta: null };
     } catch (error) {
       console.error('Error in getVendors:', error);
       throw error;
@@ -199,16 +359,89 @@ export class SimpleDirectusService {
             slug: { _eq: slug },
             status: { _eq: 'active' }
           },
-          fields: ['*', { 
-            categories: ['*'], 
-            services: ['*'],
-            working_hours: ['*'],
-            reviews: ['*']
-          }],
+          fields: ['*', 'categories.categories_id.*'],
           limit: 1
         })
       );
-      return response[0] as Vendor || null;
+      const vendor = response[0] as Vendor | null;
+      if (!vendor) {
+        return null;
+      }
+
+      const [workingHoursResponse, reviewsResponse] = await Promise.all([
+        directus.request(
+          readItems('working_hours', {
+            filter: { vendor_id: { _eq: vendor.id } },
+            fields: ['*'],
+            sort: ['day_of_week'],
+            limit: 50
+          })
+        ),
+        directus.request(
+          readItems('reviews', {
+            filter: { vendor_id: { _eq: vendor.id } },
+            fields: ['*'],
+            sort: ['-created_at'],
+            limit: 100
+          })
+        )
+      ]);
+
+      const employeesResponse = await directus.request(
+        readItems('employees', {
+          filter: {
+            vendor_id: { _eq: vendor.id },
+            status: { _eq: 'active' }
+          },
+          fields: ['id'],
+          limit: 100
+        })
+      );
+
+      const employeeIds = (employeesResponse as Pick<Employee, 'id'>[]).map((employee) => employee.id);
+      let services: Service[] = [];
+
+      if (employeeIds.length > 0) {
+        const employeeServicesResponse = await directus.request(
+          readItems('employee_services', {
+            filter: {
+              employee_id: { _in: employeeIds },
+              is_active: { _eq: true }
+            },
+            fields: ['id', 'employee_id', 'name', 'price', 'description', 'duration_minutes', 'sort_order', 'is_active'],
+            sort: ['sort_order'],
+            limit: 500
+          })
+        );
+
+        const seenNames = new Set<string>();
+        services = (employeeServicesResponse as EmployeeService[])
+          .filter((service) => {
+            if (seenNames.has(service.name)) {
+              return false;
+            }
+            seenNames.add(service.name);
+            return true;
+          })
+          .map((service) => ({
+            id: service.id,
+            vendor_id: vendor.id,
+            name: service.name,
+            description: service.description || '',
+            duration: service.duration_minutes,
+            price: Number(service.price),
+            is_popular: false,
+            status: service.is_active ? 'active' : 'inactive',
+            sort_order: service.sort_order || 0
+          }));
+      }
+
+      return {
+        ...vendor,
+        working_hours: workingHoursResponse as WorkingHour[],
+        reviews: reviewsResponse as Review[],
+        services
+      };
     } catch (error) {
       console.error('Error in getVendorBySlug:', error);
       return null;
@@ -260,13 +493,103 @@ export class SimpleDirectusService {
             vendor_id: { _eq: vendorId },
             status: { _eq: 'active' }
           },
+          fields: ['id', 'vendor_id', 'name', 'email', 'photo', 'bio', 'timezone', 'status', 'sort_order', 'rating', 'reviews_count'],
           sort: ['sort_order']
         })
       );
-      return response as Employee[];
+      return (response as Employee[]).map((employee) => ({
+        ...employee,
+        image: employee.photo
+      }));
     } catch (error) {
       console.error('Error fetching employees:', error);
       return [];
+    }
+  }
+
+  static async getSearchLocations(): Promise<SearchLocationOption[]> {
+    try {
+      const [locationsResponse, vendorsResponse] = await Promise.all([
+        directus.request(
+          readItems('locations', {
+            filter: { status: { _eq: 'active' } },
+            sort: ['sort_order'],
+            fields: ['id', 'name', 'slug']
+          })
+        ),
+        directus.request(
+          readItems('vendors', {
+            filter: { status: { _eq: 'active' } },
+            fields: ['id', 'city', 'area'],
+            sort: ['city', 'area'],
+            limit: 500
+          })
+        )
+      ]);
+
+      const options = new Map<string, SearchLocationOption>();
+
+      (locationsResponse as Location[]).forEach((location) => {
+        const city = location.name.trim();
+        options.set(`city:${city.toLowerCase()}`, {
+          value: city,
+          label: city,
+          city
+        });
+      });
+
+      (vendorsResponse as Pick<Vendor, 'city' | 'area'>[]).forEach((vendor) => {
+        const city = vendor.city?.trim();
+        const area = vendor.area?.trim();
+        if (!city) {
+          return;
+        }
+
+        if (!options.has(`city:${city.toLowerCase()}`)) {
+          options.set(`city:${city.toLowerCase()}`, {
+            value: city,
+            label: city,
+            city
+          });
+        }
+
+        if (area) {
+          const key = `area:${area.toLowerCase()}::${city.toLowerCase()}`;
+          options.set(key, {
+            value: `${area}||${city}`,
+            label: `${area}, ${city}`,
+            city,
+            area
+          });
+        }
+      });
+
+      return Array.from(options.values()).sort((left, right) => {
+        if (left.city === right.city) {
+          return (left.area || '').localeCompare(right.area || '');
+        }
+        return left.city.localeCompare(right.city);
+      });
+    } catch (error) {
+      console.error('Error in getSearchLocations:', error);
+      return [];
+    }
+  }
+
+  static async getEmployeeWithVendor(employeeId: string): Promise<Employee | null> {
+    try {
+      const response = await directus.request(
+        readItems('employees', {
+          filter: { id: { _eq: employeeId } },
+          fields: ['*', 'vendor_id.slug'],
+          limit: 1
+        })
+      );
+      const employee = (response as any[])[0] as Employee | undefined;
+      return employee || null;
+    } catch (error) {
+      console.error('Error fetching employee by id:', error);
+      return null;
     }
   }
 
@@ -306,22 +629,67 @@ export class SimpleDirectusService {
     }
   }
 
-  static async getBookings(employeeId: number | string, startDate: Date, endDate: Date): Promise<Booking[]> {
+  static async getVendorEmployees(vendorId: string): Promise<(Employee & { services: EmployeeService[] })[]> {
     try {
-      const response = await directus.request(
-        readItems('bookings', {
+      const employeesResponse = await directus.request(
+        readItems('employees', {
           filter: {
-            employee_id: { _eq: employeeId },
-            _and: [
-              { start_datetime: { _gte: startDate.toISOString() } },
-              { start_datetime: { _lte: endDate.toISOString() } }
-            ],
-            status: { _nin: ['cancelled'] }
+            vendor_id: { _eq: vendorId },
+            status: { _eq: 'active' }
           },
-          sort: ['start_datetime']
+          fields: ['id', 'vendor_id', 'name', 'email', 'photo', 'bio', 'timezone', 'status', 'sort_order', 'rating', 'reviews_count'],
+          sort: ['sort_order']
         })
       );
-      return response as Booking[];
+
+      const employees = (employeesResponse as Employee[]) || [];
+      if (employees.length === 0) {
+        return [];
+      }
+
+      const employeeIds = employees.map((employee) => employee.id);
+      const servicesResponse = await directus.request(
+        readItems('employee_services', {
+          filter: {
+            employee_id: { _in: employeeIds },
+            is_active: { _eq: true }
+          },
+          fields: ['*'],
+          sort: ['sort_order']
+        })
+      );
+
+      const services = (servicesResponse as EmployeeService[]) || [];
+
+      return employees.map((employee) => ({
+        ...employee,
+        image: employee.photo,
+        services: services.filter((service) => service.employee_id === employee.id)
+      }));
+    } catch (error) {
+      console.error('Error fetching vendor employees:', error);
+      return [];
+    }
+  }
+
+  static async getBookings(employeeId: number | string, startDate: Date, endDate: Date): Promise<Booking[]> {
+    try {
+      const params = new URLSearchParams({
+        employeeId: String(employeeId),
+        start: startDate.toISOString(),
+        end: endDate.toISOString(),
+      });
+
+      const response = await fetch(`/api/bookings?${params.toString()}`, {
+        cache: 'no-store'
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => null);
+        throw new Error(error?.error || 'Failed to fetch bookings');
+      }
+
+      const payload = await response.json();
+      return (payload?.data || []) as Booking[];
     } catch (error) {
       console.error('Error fetching bookings:', error);
       return [];
@@ -330,16 +698,18 @@ export class SimpleDirectusService {
 
   static async createBooking(data: Partial<Booking>): Promise<Booking> {
     try {
-      const response = await fetch(`${directusUrl}/items/bookings`, {
+      const response = await fetch('/api/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       });
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.errors?.[0]?.message || 'Failed to create booking');
+        const error = await response.json().catch(() => null);
+        throw new Error(error?.error || error?.errors?.[0]?.message || 'Failed to create booking');
       }
-      return await response.json();
+
+      const text = await response.text();
+      return text ? JSON.parse(text) : (data as Booking);
     } catch (error) {
       console.error('Error creating booking:', error);
       throw error;
@@ -363,12 +733,15 @@ export class SimpleDirectusService {
 
   static async createEmployeeReview(data: any) {
     try {
-      const response = await fetch(`${directusUrl}/items/employee_reviews`, {
+      const response = await fetch('/api/employee-reviews', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       });
-      if (!response.ok) throw new Error('Failed to create employee review');
+      if (!response.ok) {
+        const error = await response.json().catch(() => null);
+        throw new Error(error?.error || 'Failed to create employee review');
+      }
       return await response.json();
     } catch (error) {
       console.error('Error creating employee review:', error);
@@ -378,14 +751,18 @@ export class SimpleDirectusService {
 
   static async createBusinessLead(data: any) {
     try {
-      const response = await fetch(`${directusUrl}/items/business_leads`, {
+      const response = await fetch('/api/business-leads', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(data)
       });
-      if (!response.ok) throw new Error('Failed to create lead');
+      if (!response.ok) {
+        const error = await response.json().catch(() => null);
+        throw new Error(error?.error || 'Failed to create lead');
+      }
+
       return await response.json();
     } catch (error) {
       console.error('Error creating business lead:', error);
@@ -393,5 +770,3 @@ export class SimpleDirectusService {
     }
   }
 }
-
-
