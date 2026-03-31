@@ -7,26 +7,30 @@ A comprehensive salon marketplace platform built with Directus, Next.js, and Doc
 To bring up the full production-ready system (including Nginx) on a fresh server:
 
 ```bash
-# 1. Start all services (Nginx, Directus, Database, Production Frontend)
+# 1. Start all services
 docker compose up --build -d
 
 # 2. Initialize Database Schema
-Get-Content sql/setup/rebuild_marketplace.sql | docker exec -i saloonmarketplace-database-1 psql -U admin -d postgres
+# Note: replace 'salonapp' with your folder name if it differs
+docker exec -i salonapp-database-1 psql -U admin -d postgres < sql/setup/rebuild_marketplace.sql
 
 # 3. Register Collections & Relations in Directus Metadata
-Get-Content sql/collections/register_collections.sql | docker exec -i saloonmarketplace-database-1 psql -U admin -d postgres
-Get-Content sql/collections/register_relations.sql | docker exec -i saloonmarketplace-database-1 psql -U admin -d postgres
+docker exec -i salonapp-database-1 psql -U admin -d postgres < sql/collections/register_collections.sql
+docker exec -i salonapp-database-1 psql -U admin -d postgres < sql/collections/register_relations.sql
 
 # 4. Configure Public Permissions
-Get-Content sql/permissions/permissions_public_system.sql | docker exec -i saloonmarketplace-database-1 psql -U admin -d postgres
-Get-Content sql/permissions/permissions_public.sql | docker exec -i saloonmarketplace-database-1 psql -U admin -d postgres
+docker exec -i salonapp-database-1 psql -U admin -d postgres < sql/permissions/permissions_public_system.sql
+docker exec -i salonapp-database-1 psql -U admin -d postgres < sql/permissions/permissions_public.sql
 
 # 5. Restart Directus to refresh metadata
-docker restart saloonmarketplace-directus-1
+docker restart salonapp-directus-1
 
 # 6. Run Enhanced Seeder (for images and demo data)
 node tests/scripts/seeder.js
 ```
+
+> [!NOTE]
+> **Container Prefixes**: Docker Compose prefixes containers with your folder name (e.g., `salonapp-database-1`). If your folder name is different, adjust the commands accordingly.
 
 ## 🛠️ Key Technical Fixes (Included)
 
