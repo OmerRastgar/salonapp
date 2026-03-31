@@ -133,7 +133,7 @@ export interface Booking {
   created_at: string;
 }
 
-const directusUrl = process.env.NEXT_PUBLIC_DIRECTUS_URL || 'http://localhost:8055';
+const directusUrl = process.env.NEXT_PUBLIC_DIRECTUS_URL || "";
 const directus = createDirectus(directusUrl).with(rest());
 
 export class SimpleDirectusService {

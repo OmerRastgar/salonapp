@@ -7,7 +7,7 @@ async function getDirectusUrls() {
   if (process.env.DIRECTUS_INTERNAL_URL) urls.push(process.env.DIRECTUS_INTERNAL_URL);
   if (process.env.NEXT_PUBLIC_DIRECTUS_URL) urls.push(process.env.NEXT_PUBLIC_DIRECTUS_URL);
   urls.push("http://directus:8055");
-  urls.push("http://localhost:8055");
+  // urls.push("http://localhost:8055");
   
   // Remove duplicates and empty values
   return Array.from(new Set(urls.filter(Boolean)));
