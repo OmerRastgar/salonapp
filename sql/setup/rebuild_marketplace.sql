@@ -74,7 +74,8 @@ CREATE TABLE public.employees (
     status character varying(50) DEFAULT 'active',
     sort_order integer DEFAULT 0,
     rating decimal(3,2) DEFAULT 0,
-    reviews_count integer DEFAULT 0
+    reviews_count integer DEFAULT 0,
+    UNIQUE(name, vendor_id)
 );
 
 CREATE TABLE public.employee_services (

@@ -65,4 +65,14 @@
 - **Description**: The Next.js frontend was blocked from fetching data from `http://localhost:8055` (Directus) with the error: "Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present".
 - **Root Cause**: The `docker-compose-simple.yml` had mapped `CORS_ORIGIN` but was missing the mandatory `CORS_ENABLED: 'true'` environment variable, meaning Directus 11 completely ignored the origin mappings.
 - **Solution**: Added `CORS_ENABLED: 'true'`, `CORS_CREDENTIALS`, `CORS_METHODS`, and `CORS_ALLOWED_HEADERS` to the Directus environment configuration and restarted Docker containers.
-- **Prevention**: Always include `CORS_ENABLED: 'true'` when defining `CORS_ORIGIN` in the Directus `docker-compose` setup.
+- **Prevention**: ---
+
+## Entry 7 - 2026-04-02
+
+### Incident: Directus 11 "Administrator" 403 Lockout & Field/Schema Null Errors
+- **Description**: The Directus Admin UI began throwing 403 Forbidden errors on core system endpoints (`/translations`, `/fields`, `/roles`) even for the primary admin user. This led to "TypeError: Cannot read properties of null (reading 'field')" crashes in the Vue frontend.
+- **Root Cause**: The **Administrator Policy** (which in Directus 11 contains the actual permissions for the Admin role) became corrupted or had its `admin_access` and `app_access` flags set to `false`. This effectively stripped the Administrator role of its system privileges.
+- **Solution**: 
+    1. Direct Database Repair: Updated the `directus_policies` table via SQL to set `admin_access = true` and `app_access = true` for the 'Administrator' policy.
+    2. Full Reset: Performed a volume wipe (`docker-compose down -v`) and re-initialized the database using `scripts/execute-rebuild.cjs` and `scripts/seed-essential.cjs` to ensure a clean metadata state.
+- **Prevention**: Avoid manual alterations to system policies in Directus 11 without backups. If a lockout occurs, use `docker-compose exec database psql` to verify the `admin_access` flag in the `directus_policies` table.

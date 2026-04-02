@@ -158,7 +158,10 @@ function SearchContent() {
         setIsLocating(false);
       },
       () => {
-        setLocationError("Unable to get your location right now.");
+        const msg = !window.isSecureContext 
+          ? "Location requires a secure (HTTPS) connection." 
+          : "Unable to get your location right now.";
+        setLocationError(msg);
         setIsLocating(false);
       },
       {

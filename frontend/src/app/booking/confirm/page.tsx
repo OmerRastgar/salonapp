@@ -127,6 +127,7 @@ function BookingConfirmContent() {
         booker_email: customerEmail,
         start_datetime: selectedSlot.toISOString(),
         end_datetime: endTime.toISOString(),
+        amount: service.price,
         notes: notes || undefined,
       });
 

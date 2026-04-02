@@ -130,7 +130,10 @@ export default function Home() {
         setIsLocating(false);
       },
       () => {
-        setLocationError("Unable to get your location right now.");
+        const msg = (typeof window !== 'undefined' && !window.isSecureContext)
+          ? "Location requires a secure (HTTPS) connection."
+          : "Unable to get your location right now.";
+        setLocationError(msg);
         setLocation("");
         setUserLocation(null);
         setIsLocating(false);
