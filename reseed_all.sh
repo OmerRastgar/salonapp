@@ -56,18 +56,22 @@ else
     exit 1
 fi
 
-# 6. Step 2: Binary Asset Upload (Self-Contained)
+# 6. Step 2: Binary Asset Upload (Inside Project Root for Node resolution)
 echo -e "${BLUE}>>> Step 2: Uploading binary images to Directus...${NC}"
 
-# Ensure /tmp/scripts and /tmp/Images exist in container
-docker exec $FE_CONTAINER mkdir -p /tmp/scripts /tmp/Images
+# Ensure /app/Images_temp exists in container
+docker exec $FE_CONTAINER mkdir -p /app/Images_temp
 
-# Copy files into container
-docker cp frontend/scripts/reseed_assets.ts $FE_CONTAINER:/tmp/reseed_assets.ts
-docker cp Images/. $FE_CONTAINER:/tmp/Images/
+# Copy files into container at the app root so node_modules are accessible
+docker cp frontend/scripts/reseed_assets.ts $FE_CONTAINER:/app/reseed_assets_temp.ts
+docker cp Images/. $FE_CONTAINER:/app/Images_temp/
 
-# Run the uploader inside container pointing to the /tmp/Images folder
-docker exec -e IMAGES_DIR="/tmp/Images" -i $FE_CONTAINER npx tsx /tmp/reseed_assets.ts > asset_updates.tmp 2>asset_errors.log
+# Run the uploader inside container pointing to the /app/Images_temp folder
+docker exec -e IMAGES_DIR="/app/Images_temp" -i $FE_CONTAINER npx tsx reseed_assets_temp.ts > asset_updates.tmp 2>asset_errors.log
+
+# Clean up temp files in container
+docker exec $FE_CONTAINER rm /app/reseed_assets_temp.ts
+docker exec $FE_CONTAINER rm -rf /app/Images_temp
 
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✔ Assets uploaded successfully.${NC}"
