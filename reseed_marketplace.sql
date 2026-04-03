@@ -75,34 +75,44 @@ INSERT INTO employee_schedules (id, employee_id, day_of_week, start_time, end_ti
 SELECT gen_random_uuid(), e.id, d, '09:00:00', '21:00:00', false FROM employees e cross join generate_series(0, 6) d;
 
 -- 6. PERMISSIONS (PUBLIC READ)
--- 6. PERMISSIONS (DIRECTUS 11 POLICY SYSTEM)
--- Create or ensure a Public Policy exists (Static ID for restoration)
-INSERT INTO directus_policies (id, name, icon, description, ip_access, enforce_tfa) VALUES
-('abf8a154-5b1c-4a46-ac9c-7300570f4f17', 'Public Access', 'public', 'Grant public read access to marketplace', NULL, false)
-ON CONFLICT (id) DO NOTHING;
+-- 6. PERMISSIONS (DIRECTUS 11 SMART DISCOVERY)
+-- 1. Find or create the Public Access Policy
+DO $$
+DECLARE
+    public_policy_id UUID;
+BEGIN
+    -- Try to find an existing policy linked to Public access (Role IS NULL and User IS NULL)
+    SELECT policy INTO public_policy_id FROM directus_access WHERE role IS NULL AND "user" IS NULL LIMIT 1;
+    
+    -- If not found, create a new one
+    IF public_policy_id IS NULL THEN
+        public_policy_id := 'abf8a154-5b1c-4a46-ac9c-7300570f4f17';
+        INSERT INTO directus_policies (id, name, icon, description, ip_access, enforce_tfa) 
+        VALUES (public_policy_id, 'Public Access', 'public', 'Grant public read access to marketplace', NULL, false)
+        ON CONFLICT (id) DO NOTHING;
+        
+        INSERT INTO directus_access (id, policy, role, "user") 
+        VALUES (gen_random_uuid(), public_policy_id, NULL, NULL)
+        ON CONFLICT DO NOTHING;
+    END IF;
 
--- Assign this Policy to the Public Role (identifying Public role by its empty parent/null status)
-INSERT INTO directus_access (id, policy, role, "user") 
-SELECT gen_random_uuid(), 'abf8a154-5b1c-4a46-ac9c-7300570f4f17', id, NULL 
-FROM directus_roles 
-WHERE name = 'Public' 
-OR (parent IS NULL AND name != 'Administrator')
-LIMIT 1
-ON CONFLICT DO NOTHING;
+    -- 2. Clear old marketplace permissions for this policy
+    DELETE FROM directus_permissions WHERE policy = public_policy_id;
 
--- Link common collections to this Policy
-DELETE FROM directus_permissions WHERE policy = 'abf8a154-5b1c-4a46-ac9c-7300570f4f17';
-INSERT INTO directus_permissions (policy, collection, action, permissions, validation) VALUES
-('abf8a154-5b1c-4a46-ac9c-7300570f4f17', 'vendors', 'read', '{}', '{}'),
-('abf8a154-5b1c-4a46-ac9c-7300570f4f17', 'locations', 'read', '{}', '{}'),
-('abf8a154-5b1c-4a46-ac9c-7300570f4f17', 'categories', 'read', '{}', '{}'),
-('abf8a154-5b1c-4a46-ac9c-7300570f4f17', 'services', 'read', '{}', '{}'),
-('abf8a154-5b1c-4a46-ac9c-7300570f4f17', 'employees', 'read', '{}', '{}'),
-('abf8a154-5b1c-4a46-ac9c-7300570f4f17', 'employee_services', 'read', '{}', '{}'),
-('abf8a154-5b1c-4a46-ac9c-7300570f4f17', 'employee_schedules', 'read', '{}', '{}'),
-('abf8a154-5b1c-4a46-ac9c-7300570f4f17', 'working_hours', 'read', '{}', '{}'),
-('abf8a154-5b1c-4a46-ac9c-7300570f4f17', 'directus_files', 'read', '{}', '{}'),
-('abf8a154-5b1c-4a46-ac9c-7300570f4f17', 'reviews', 'read', '{}', '{}');
+    -- 3. Inject new Marketplace permissions (Unlocking ALL fields with ["*"])
+    INSERT INTO directus_permissions (policy, collection, action, permissions, validation, fields) VALUES
+    (public_policy_id, 'vendors', 'read', '{}', '{}', '["*"]'),
+    (public_policy_id, 'locations', 'read', '{}', '{}', '["*"]'),
+    (public_policy_id, 'categories', 'read', '{}', '{}', '["*"]'),
+    (public_policy_id, 'services', 'read', '{}', '{}', '["*"]'),
+    (public_policy_id, 'employees', 'read', '{}', '{}', '["*"]'),
+    (public_policy_id, 'employee_services', 'read', '{}', '{}', '["*"]'),
+    (public_policy_id, 'employee_schedules', 'read', '{}', '{}', '["*"]'),
+    (public_policy_id, 'working_hours', 'read', '{}', '{}', '["*"]'),
+    (public_policy_id, 'directus_files', 'read', '{}', '{}', '["*"]'),
+    (public_policy_id, 'reviews', 'read', '{}', '{}', '["*"]'),
+    (public_policy_id, 'reviews', 'create', '{}', '{}', '["*"]');
+END $$;
 
 -- Locations Seeding
 INSERT INTO locations (id, name, slug, status, sort_order) VALUES
