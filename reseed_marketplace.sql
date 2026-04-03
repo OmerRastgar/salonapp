@@ -106,9 +106,9 @@ INSERT INTO directus_permissions (policy, collection, action, permissions, valid
 
 -- Locations Seeding
 INSERT INTO locations (id, name, slug, status, sort_order) VALUES
-('loc-001', 'Karachi', 'karachi', 'active', 1),
-('loc-002', 'Lahore', 'lahore', 'active', 2),
-('loc-003', 'Islamabad', 'islamabad', 'active', 3)
+('d1111111-1111-4000-f001-000000000001', 'Karachi', 'karachi', 'active', 1),
+('d1111111-1111-4000-f002-000000000002', 'Lahore', 'lahore', 'active', 2),
+('d1111111-1111-4000-f003-000000000003', 'Islamabad', 'islamabad', 'active', 3)
 ON CONFLICT (id) DO NOTHING;
 
 COMMIT;
