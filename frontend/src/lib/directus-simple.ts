@@ -145,9 +145,9 @@ if (isServer) {
   // Server-side: Prefer internal Docker URL for speed/reliability
   finalUrl = internalUrl;
 } else {
-  // Browser-side: ALWAYS use a relative path ("") in production.
-  // This forces the browser to use Port 80/443 (via Nginx) and avoids Port 8055 firewall issues.
-  finalUrl = "";
+  // Browser-side: ALWAYS use the current origin in production.
+  // This provides a valid URL for the SDK and forces traffic through Port 80 (via Nginx).
+  finalUrl = typeof window !== 'undefined' ? window.location.origin : "";
 }
 
 console.log(`[Directus] Initializing client with URL: "${finalUrl}" (Server: ${isServer})`);
