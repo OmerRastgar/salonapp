@@ -70,9 +70,9 @@ docker cp Images/. $FE_CONTAINER:/tmp/Images_temp/
 # We use NODE_PATH to tell Node where to find the axios and tsx packages
 docker exec -e NODE_PATH="/app/node_modules" -e IMAGES_DIR="/tmp/Images_temp" -i $FE_CONTAINER npx tsx /tmp/reseed_assets_temp.ts > asset_updates.tmp 2>asset_errors.log
 
-# Clean up temp files in container
-docker exec $FE_CONTAINER rm /tmp/reseed_assets_temp.ts
-docker exec $FE_CONTAINER rm -rf /tmp/Images_temp
+# Clean up temp files in container (using root to ensure permission)
+docker exec -u root $FE_CONTAINER rm /tmp/reseed_assets_temp.ts
+docker exec -u root $FE_CONTAINER rm -rf /tmp/Images_temp
 
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✔ Assets uploaded successfully.${NC}"
@@ -86,7 +86,6 @@ echo -e "${BLUE}>>> Step 3: Synchronizing image IDs...${NC}"
 grep "UPDATE" asset_updates.tmp | docker exec -i $DB_CONTAINER psql -U $DB_USER -d $DB_NAME
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✔ Image links synchronized.${NC}"
-    rm asset_updates.tmp
 else
     echo -e "${RED}✘ Failed to synchronize image links.${NC}"
     exit 1
@@ -95,3 +94,6 @@ fi
 echo -e "${GREEN}>>> Restoration Complete! Your marketplace is now 100% functional.${NC}"
 echo -e "${BLUE}>>> Final Note: Captured placeholder IDs for Gallery manual check:${NC}"
 grep "Placeholder" asset_updates.tmp || echo "No extra placeholders found."
+
+# Final host cleanup
+rm asset_updates.tmp
