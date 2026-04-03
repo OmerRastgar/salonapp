@@ -44,6 +44,22 @@ if [ -z "$FE_CONTAINER" ] || [ -z "$DB_CONTAINER" ]; then
     exit 1
 fi
 
+echo -e "${BLUE}>>> Using command: $COMPOSE${NC}"
+
+# 1.1 Fresh Build & Restart
+echo -e "${BLUE}>>> Step 0: Stopping and Rebuilding services to apply UI changes...${NC}"
+$COMPOSE down
+$COMPOSE up -d --build
+if [ $? -eq 0 ]; then
+    echo -e "${GREEN}✔ Services rebuilt and restarted.${NC}"
+else
+    echo -e "${RED}✘ Failed to rebuild services. Check your Docker logs.${NC}"
+    exit 1
+fi
+
+echo -e "${BLUE}>>> Waiting 15s for services (Directus/DB) to stabilize...${NC}"
+sleep 15
+
 echo -e "${BLUE}>>> Targeting DB: $DB_CONTAINER / FE: $FE_CONTAINER${NC}"
 
 # 5. Step 1: Base SQL Seeding

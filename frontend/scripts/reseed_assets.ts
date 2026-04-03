@@ -82,4 +82,10 @@ async function run() {
   }
 }
 
-run();
+run().then(() => {
+  // Ensure we close the pool if we used it (though we aren't currently using pg pool in the loop, only axios)
+  process.exit(0);
+}).catch(err => {
+  console.error(err);
+  process.exit(1);
+});
