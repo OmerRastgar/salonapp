@@ -56,14 +56,16 @@ export function VendorCard({ vendor, showCategory = true }: VendorCardProps) {
       <div className="relative h-44 bg-gray-200 sm:h-48">
         {vendor.cover_image ? (
           <img
-            src={SimpleDirectusService.getAssetUrl(vendor.cover_image) || '/placeholder-vendor.jpg'}
+            src={SimpleDirectusService.getAssetUrl(vendor.cover_image) || 'https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&q=80&w=800'}
             alt={vendor.name}
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
         ) : (
-          <div className="w-full h-full bg-gradient-to-br from-purple-100 to-pink-100 flex items-center justify-center">
-            <span className="text-4xl">💇‍♀️</span>
-          </div>
+          <img
+            src="https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&q=80&w=800"
+            alt={vendor.name}
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+          />
         )}
         
         {/* Featured Badge */}

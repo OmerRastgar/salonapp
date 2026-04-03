@@ -257,7 +257,7 @@ function BookingPageContent() {
     if (!selectedDate || !selectedService || schedules.length === 0) return;
 
     const dayOfWeek = selectedDate.getDay();
-    const schedule = schedules.find(s => s.day_of_week === dayOfWeek && !s.is_closed);
+    const schedule = (schedules as any[]).find(s => s.day_of_week === dayOfWeek && !s.is_closed);
     
     if (!schedule) {
       setAvailableSlots([]);

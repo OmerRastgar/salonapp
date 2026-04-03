@@ -12,8 +12,8 @@ services:
       - POSTGRES_USER=${DB_USER}
       - POSTGRES_PASSWORD=${DB_PASSWORD}
       - POSTGRES_DB=${DB_DATABASE}
-    # ports:
-    #   - "5432:5432"
+    ports:
+      - "5432:5432"
     networks:
       - marketplace-network
 
@@ -22,29 +22,13 @@ services:
     restart: always
     ports:
       - "80:80"
-      - "8055:8055"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
-    depends_on:
-      - frontend
     networks:
       - marketplace-network
 
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        - NEXT_PUBLIC_DIRECTUS_URL=${NEXT_PUBLIC_DIRECTUS_URL}
-    environment:
-      - NEXT_PUBLIC_DIRECTUS_URL=${NEXT_PUBLIC_DIRECTUS_URL}
-      - DIRECTUS_INTERNAL_URL=${DIRECTUS_INTERNAL_URL:-http://directus:8055}
-      - ADMIN_EMAIL=${ADMIN_EMAIL}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
-    depends_on:
-      - directus
-    networks:
-      - marketplace-network
 
   directus:
     image: directus/directus:11.1.1
@@ -62,6 +46,8 @@ services:
       - PUBLIC_URL=${PUBLIC_URL}
       - CORS_ENABLED=true
       - CORS_ORIGIN=true
+    ports:
+      - "8055:8055"
     depends_on:
       - database
     networks:

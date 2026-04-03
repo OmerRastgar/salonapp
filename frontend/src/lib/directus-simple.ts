@@ -45,6 +45,7 @@ export interface Category {
   id: string;
   name: string;
   slug: string;
+  image?: string;
 }
 
 export interface Location {
@@ -133,7 +134,12 @@ export interface Booking {
   created_at: string;
 }
 
-const directusUrl = process.env.NEXT_PUBLIC_DIRECTUS_URL || "";
+const isServer = typeof window === 'undefined';
+const publicUrl = process.env.NEXT_PUBLIC_DIRECTUS_URL || "";
+const internalUrl = process.env.DIRECTUS_INTERNAL_URL || publicUrl;
+
+// Use internal URL for server-side fetches (Docker network) and public URL for client-side fetches
+const directusUrl = isServer ? internalUrl : publicUrl;
 const directus = createDirectus(directusUrl).with(rest());
 
 export class SimpleDirectusService {
@@ -207,11 +213,15 @@ export class SimpleDirectusService {
 
         const matchingVendorIds = junctionRows
           .filter((row: any) => {
-            const slug: string = row.categories_id?.slug || '';
-            const name: string = row.categories_id?.name || '';
+            const slug: string = (row.categories_id?.slug || '').toLowerCase();
+            const name: string = (row.categories_id?.name || '').toLowerCase();
+            const searchTerm = options.category!.toLowerCase();
+            
             return (
-              slug === categorySlug ||
-              name.toLowerCase().includes(options.category!.toLowerCase())
+              slug === searchTerm || 
+              searchTerm.includes(slug) ||
+              name.includes(searchTerm) ||
+              searchTerm.includes(name)
             );
           })
           .map((row: any) => row.vendors_id);
@@ -224,10 +234,11 @@ export class SimpleDirectusService {
 
       const query: any = {
         filter: filters,
-        // Fetch vendor fields + junction categories (no 'services' — services belong to employees)
-        fields: ['*', 'categories.categories_id.*', 'working_hours.*', 'services.*'],
+        fields: ['*', 'latitude', 'longitude', 'categories.categories_id.*', 'working_hours.*', 'services.*'],
         limit: options.limit || 10,
-        offset: options.offset || 0
+        offset: options.offset || 0,
+        // Manual cache-buster in the URL
+        _t: Date.now()
       };
 
       const response = await directus.request(readItems('vendors', query));
@@ -359,11 +370,18 @@ export class SimpleDirectusService {
             slug: { _eq: slug },
             status: { _eq: 'active' }
           },
-          fields: ['*', 'categories.categories_id.*'],
+          fields: [
+            '*', 
+            'categories.categories_id.*',
+            'working_hours.*',
+            'reviews.*'
+          ],
           limit: 1
         })
       );
       const vendor = response[0] as Vendor | null;
+      console.log(`[SimpleDirectusService] Fetched vendor by slug "${slug}":`, vendor ? vendor.name : 'Not Found', vendor?.id);
+      
       if (!vendor) {
         return null;
       }
@@ -401,8 +419,10 @@ export class SimpleDirectusService {
       const employeeIds = (employeesResponse as Pick<Employee, 'id'>[]).map((employee) => employee.id);
       let services: Service[] = [];
 
+      // 3. AGGREGATE SERVICES FROM INDIVIDUAL EMPLOYEES
+      let employeeServicesResponse: EmployeeService[] = [];
       if (employeeIds.length > 0) {
-        const employeeServicesResponse = await directus.request(
+        const response = await directus.request(
           readItems('employee_services', {
             filter: {
               employee_id: { _in: employeeIds },
@@ -413,28 +433,29 @@ export class SimpleDirectusService {
             limit: 500
           })
         );
-
-        const seenNames = new Set<string>();
-        services = (employeeServicesResponse as EmployeeService[])
-          .filter((service) => {
-            if (seenNames.has(service.name)) {
-              return false;
-            }
-            seenNames.add(service.name);
-            return true;
-          })
-          .map((service) => ({
-            id: service.id,
-            vendor_id: vendor.id,
-            name: service.name,
-            description: service.description || '',
-            duration: service.duration_minutes,
-            price: Number(service.price),
-            is_popular: false,
-            status: service.is_active ? 'active' : 'inactive',
-            sort_order: service.sort_order || 0
-          }));
+        employeeServicesResponse = response as EmployeeService[];
       }
+
+      const seenNames = new Set<string>();
+      services = employeeServicesResponse
+        .filter((service) => {
+          if (seenNames.has(service.name)) return false;
+          seenNames.add(service.name);
+          return true;
+        })
+        .map((service) => ({
+          id: service.id,
+          vendor_id: vendor.id,
+          name: service.name,
+          description: service.description || '',
+          duration: service.duration_minutes,
+          price: Number(service.price),
+          is_popular: false,
+          status: service.is_active ? 'active' : 'inactive',
+          sort_order: service.sort_order || 0
+        }));
+
+      console.log(`[SimpleDirectusService] Mapped ${services.length} services for vendor ${vendor.name}`, services);
 
       return {
         ...vendor,
@@ -480,9 +501,16 @@ export class SimpleDirectusService {
     }
   }
 
-  static getAssetUrl(id: string | null | undefined) {
+  static getAssetUrl(id: string | null | undefined): string | null {
     if (!id) return null;
-    return `${directusUrl}/assets/${id}`;
+    const publicUrl = process.env.NEXT_PUBLIC_DIRECTUS_URL || "";
+    
+    // If we're on localhost, use a relative path to bypass Next.js private IP blocks
+    if (publicUrl.includes('localhost') || publicUrl === '' || publicUrl.includes('127.0.0.1')) {
+      return `/assets/${id}`;
+    }
+    
+    return `${publicUrl}/assets/${id}`;
   }
 
   static async getEmployees(vendorId: number | string): Promise<Employee[]> {
@@ -623,8 +651,8 @@ export class SimpleDirectusService {
         })
       );
       return response as EmployeeSchedule[];
-    } catch (error) {
-      console.error('Error fetching employee schedules:', error);
+    } catch (error: any) {
+      console.error('Error fetching employee schedules:', error?.errors || error?.message || error);
       return [];
     }
   }
@@ -643,6 +671,8 @@ export class SimpleDirectusService {
       );
 
       const employees = (employeesResponse as Employee[]) || [];
+      console.log(`[SimpleDirectusService] Fetched ${employees.length} employees for vendor ${vendorId}`);
+
       if (employees.length === 0) {
         return [];
       }
@@ -718,15 +748,24 @@ export class SimpleDirectusService {
 
   static async createVendorReview(data: any) {
     try {
-      const response = await fetch(`${directusUrl}/items/reviews`, {
+      const publicUrl = process.env.NEXT_PUBLIC_DIRECTUS_URL || "";
+      const isLocal = publicUrl.includes('localhost') || publicUrl === '' || publicUrl.includes('127.0.0.1');
+      const endpoint = isLocal ? '/items/reviews' : `${publicUrl}/items/reviews`;
+      
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       });
-      if (!response.ok) throw new Error('Failed to create vendor review');
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Directus Review Error:', errorData);
+        throw new Error('Failed to create vendor review');
+      }
       return await response.json();
-    } catch (error) {
-      console.error('Error creating vendor review:', error);
+    } catch (error: any) {
+      console.error('Error creating vendor review:', error?.errors || error?.message || error);
       throw error;
     }
   }

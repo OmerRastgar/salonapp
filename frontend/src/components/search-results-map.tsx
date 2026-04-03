@@ -11,6 +11,7 @@ interface SearchResultsMapProps {
     latitude: number;
     longitude: number;
   } | null;
+  fullBleed?: boolean;
 }
 
 interface VendorWithCoordinates extends Vendor {
@@ -25,14 +26,13 @@ declare global {
 }
 
 function getCoordinate(value: unknown) {
-  const parsed = Number(value);
+  if (value === null || value === undefined) return null;
+  const parsed = typeof value === 'number' ? value : Number(String(value));
   return Number.isFinite(parsed) ? parsed : null;
 }
 
 function ensureLeafletAssets() {
-  if (typeof document === "undefined") {
-    return Promise.resolve();
-  }
+  if (typeof document === "undefined") return Promise.resolve();
 
   const existingStylesheet = document.querySelector('link[data-leaflet="true"]');
   if (!existingStylesheet) {
@@ -43,13 +43,10 @@ function ensureLeafletAssets() {
     document.head.appendChild(link);
   }
 
-  if (window.L) {
-    return Promise.resolve();
-  }
+  if (window.L) return Promise.resolve();
 
   return new Promise<void>((resolve, reject) => {
     const existingScript = document.querySelector('script[data-leaflet="true"]') as HTMLScriptElement | null;
-
     if (existingScript) {
       existingScript.addEventListener("load", () => resolve(), { once: true });
       existingScript.addEventListener("error", () => reject(new Error("Failed to load Leaflet.")), { once: true });
@@ -66,7 +63,7 @@ function ensureLeafletAssets() {
   });
 }
 
-export function SearchResultsMap({ vendors, userLocation }: SearchResultsMapProps) {
+export function SearchResultsMap({ vendors, userLocation, fullBleed }: SearchResultsMapProps) {
   const mapRef = useRef<HTMLDivElement | null>(null);
   const leafletMapRef = useRef<any>(null);
   const markersLayerRef = useRef<any>(null);
@@ -75,18 +72,21 @@ export function SearchResultsMap({ vendors, userLocation }: SearchResultsMapProp
     () =>
       vendors
         .map((vendor) => {
-          const latitude = getCoordinate(vendor.latitude);
-          const longitude = getCoordinate(vendor.longitude);
-
-          if (latitude === null || longitude === null) {
+          // Robust extraction checking for common variations
+          const latitude = getCoordinate(vendor.latitude ?? (vendor as any).lat);
+          const longitude = getCoordinate(vendor.longitude ?? (vendor as any).lng);
+          
+          // Explicitly ignore 0,0 or near-0,0 (Africa/displacement)
+          const isInvalid = !latitude || !longitude || 
+                           (Math.abs(latitude) < 0.01 && Math.abs(longitude) < 0.01);
+          
+          if (isInvalid) {
+            console.warn(`[Map Debug] Vendor ${vendor.name} has invalid coordinates:`, { latitude, longitude });
             return null;
           }
 
-          return {
-            ...vendor,
-            latitude,
-            longitude,
-          };
+          console.log(`[Map Debug] Mapping vendor ${vendor.name}:`, { latitude, longitude });
+          return { ...vendor, latitude, longitude };
         })
         .filter((vendor): vendor is VendorWithCoordinates => vendor !== null),
     [vendors]
@@ -95,105 +95,77 @@ export function SearchResultsMap({ vendors, userLocation }: SearchResultsMapProp
   useEffect(() => {
     let cancelled = false;
 
-    async function setupMap() {
-      if (!mapRef.current || vendorsWithCoordinates.length === 0) {
-        return;
-      }
+      async function setupMap() {
+        if (!mapRef.current || vendorsWithCoordinates.length === 0) return;
+        await ensureLeafletAssets();
+        if (cancelled || !mapRef.current || !window.L) return;
 
-      await ensureLeafletAssets();
+        const L = window.L;
 
-      if (cancelled || !mapRef.current || !window.L) {
-        return;
-      }
+        if (!leafletMapRef.current) {
+          leafletMapRef.current = L.map(mapRef.current, {
+            scrollWheelZoom: true,
+            dragging: true,
+            zoomControl: true,
+          });
 
-      const L = window.L;
+          L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            attribution: '&copy; OpenStreetMap contributors',
+            maxZoom: 19,
+          }).addTo(leafletMapRef.current);
+        }
 
-      if (!leafletMapRef.current) {
-        leafletMapRef.current = L.map(mapRef.current, {
-          scrollWheelZoom: true,
-          dragging: true,
-          zoomControl: true,
+        // Mandatory size refresh for animated containers
+        leafletMapRef.current.invalidateSize();
+
+        if (markersLayerRef.current) {
+          markersLayerRef.current.clearLayers();
+        } else {
+          markersLayerRef.current = L.layerGroup().addTo(leafletMapRef.current);
+        }
+
+        const bounds = L.latLngBounds([]);
+        vendorsWithCoordinates.forEach((vendor) => {
+          const marker = L.circleMarker([vendor.latitude, vendor.longitude], {
+            radius: 7,
+            color: "#ffffff",
+            weight: 2,
+            fillColor: "#7c3aed",
+            fillOpacity: 1,
+          });
+
+          marker.bindPopup(
+            `<div style="min-width:180px">
+              <strong style="color:#111;display:block;margin-bottom:4px">${vendor.name}</strong>
+              <span style="color:#666;font-size:12px">${vendor.address}, ${vendor.area}, ${vendor.city}</span><br/>
+              <div style="margin-top:8px">
+                <a href="/vendor/${vendor.slug}" style="background:#7c3aed;color:#fff;padding:4px 12px;border-radius:99px;text-decoration:none;font-size:12px;font-weight:600">View Salon</a>
+              </div>
+            </div>`
+          );
+          marker.bindTooltip(vendor.name, { direction: "top", offset: [0, -10], opacity: 0.95 });
+          markersLayerRef.current.addLayer(marker);
+          bounds.extend([vendor.latitude, vendor.longitude]);
         });
 
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          attribution: '&copy; OpenStreetMap contributors',
-          maxZoom: 19,
-        }).addTo(leafletMapRef.current);
+        // Small delay to allow container transition to finish
+        setTimeout(() => {
+            if (cancelled || !leafletMapRef.current) return;
+            
+            // Re-verify size before fitting bounds
+            leafletMapRef.current.invalidateSize();
+
+            if (vendorsWithCoordinates.length === 1) {
+              leafletMapRef.current.setView([vendorsWithCoordinates[0].latitude, vendorsWithCoordinates[0].longitude], 14, { animate: true });
+            } else if (vendorsWithCoordinates.length > 1) {
+              leafletMapRef.current.fitBounds(bounds, { padding: [100, 100], maxZoom: 13, animate: true });
+            }
+        }, 150);
       }
 
-      if (markersLayerRef.current) {
-        markersLayerRef.current.clearLayers();
-      } else {
-        markersLayerRef.current = L.layerGroup().addTo(leafletMapRef.current);
-      }
-
-      const bounds = L.latLngBounds([]);
-
-      vendorsWithCoordinates.forEach((vendor) => {
-        const marker = L.circleMarker([vendor.latitude, vendor.longitude], {
-          radius: 6,
-          color: "#ffffff",
-          weight: 2,
-          fillColor: "#7c3aed",
-          fillOpacity: 1,
-        });
-
-        marker.bindPopup(
-          `<div style="min-width:180px">
-            <strong>${vendor.name}</strong><br/>
-            <span>${vendor.address}, ${vendor.area}, ${vendor.city}</span><br/>
-            <a href="/vendor/${vendor.slug}" style="color:#7c3aed;font-weight:600">Open vendor</a>
-          </div>`
-        );
-        marker.bindTooltip(vendor.name, {
-          direction: "top",
-          offset: [0, -10],
-          opacity: 0.95,
-        });
-        markersLayerRef.current.addLayer(marker);
-        bounds.extend([vendor.latitude, vendor.longitude]);
-      });
-
-      if (
-        userLocation &&
-        Number.isFinite(userLocation.latitude) &&
-        Number.isFinite(userLocation.longitude)
-      ) {
-        const userMarker = L.circleMarker([userLocation.latitude, userLocation.longitude], {
-          radius: 7,
-          color: "#ffffff",
-          weight: 2,
-          fillColor: "#2563eb",
-          fillOpacity: 1,
-        });
-        userMarker.bindTooltip("You are here", {
-          direction: "top",
-          offset: [0, -10],
-          opacity: 0.95,
-        });
-        userMarker.bindPopup("<strong>Your location</strong>");
-        markersLayerRef.current.addLayer(userMarker);
-        bounds.extend([userLocation.latitude, userLocation.longitude]);
-      }
-
-      if (vendorsWithCoordinates.length === 1) {
-        leafletMapRef.current.setView([vendorsWithCoordinates[0].latitude, vendorsWithCoordinates[0].longitude], 14);
-      } else {
-        leafletMapRef.current.fitBounds(bounds, {
-          padding: [32, 32],
-          maxZoom: 13,
-        });
-      }
-    }
-
-    setupMap().catch((error) => {
-      console.error("Failed to initialize search results map:", error);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [vendorsWithCoordinates]);
+      setupMap().catch((error) => console.error("Failed to map:", error));
+    return () => { cancelled = true; };
+  }, [vendorsWithCoordinates, userLocation]);
 
   useEffect(() => {
     return () => {
@@ -207,40 +179,25 @@ export function SearchResultsMap({ vendors, userLocation }: SearchResultsMapProp
 
   if (vendorsWithCoordinates.length === 0) {
     return (
-      <div className="flex h-[420px] items-center justify-center rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-6 text-center text-sm text-gray-500">
-        No map coordinates are available for these results yet.
+      <div className="flex h-full min-h-[400px] items-center justify-center bg-muted/10 p-6 text-center text-sm text-muted-foreground">
+        No map coordinates available.
       </div>
     );
   }
 
+  if (fullBleed) {
+    return (
+      <div ref={mapRef} className="h-full w-full bg-gray-100 z-0" />
+    );
+  }
+
   return (
-    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-      <div className="border-b border-gray-100 px-4 py-3">
-        <h2 className="text-sm font-semibold text-gray-900">Result map</h2>
-        <p className="text-xs text-gray-500">Pins stay fixed to the exact location. Hover or click a pin to see the vendor name.</p>
+    <div className="overflow-hidden rounded-2xl border border-border bg-white shadow-sm">
+      <div className="border-b border-border/40 px-4 py-3">
+        <h2 className="text-sm font-semibold text-foreground">Result map</h2>
+        <p className="text-xs text-muted-foreground">Pins stay fixed to the exact location.</p>
       </div>
-
-      <div ref={mapRef} className="h-[420px] w-full bg-gray-100" />
-
-      <div className="space-y-2 border-t border-gray-100 px-4 py-3">
-        {vendorsWithCoordinates.slice(0, 5).map((vendor) => (
-          <Link
-            key={vendor.id}
-            href={`/vendor/${vendor.slug}`}
-            className="flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-gray-50"
-          >
-            <div className="min-w-0">
-              <p className="truncate font-medium text-gray-900">{vendor.name}</p>
-              <p className="truncate text-xs text-gray-500">
-                {vendor.address}, {vendor.area}, {vendor.city}
-              </p>
-            </div>
-            <span className="shrink-0 text-xs text-purple-700">
-              <MapPin className="inline size-3" /> View
-            </span>
-          </Link>
-        ))}
-      </div>
+      <div ref={mapRef} className="h-[420px] w-full bg-muted/10" />
     </div>
   );
 }

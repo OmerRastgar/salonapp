@@ -4,13 +4,18 @@ const METRIC_KEY = "live_activity";
 
 async function getDirectusUrls() {
   const urls = [];
-  if (process.env.DIRECTUS_INTERNAL_URL) urls.push(process.env.DIRECTUS_INTERNAL_URL);
+  
+  // Prioritize URLs from environment variables
   if (process.env.NEXT_PUBLIC_DIRECTUS_URL) urls.push(process.env.NEXT_PUBLIC_DIRECTUS_URL);
+  if (process.env.DIRECTUS_INTERNAL_URL) urls.push(process.env.DIRECTUS_INTERNAL_URL);
+  
+  // Docker-to-Docker fallback (only works inside the same network)
   urls.push("http://directus:8055");
-  // urls.push("http://localhost:8055");
   
   // Remove duplicates and empty values
-  return Array.from(new Set(urls.filter(Boolean)));
+  const results = Array.from(new Set(urls.filter(Boolean)));
+  console.log("Candidate Directus URLs:", results);
+  return results;
 }
 
 async function loginToDirectus() {
@@ -21,6 +26,8 @@ async function loginToDirectus() {
     console.error("CRITICAL: Missing Directus credentials (ADMIN_EMAIL/ADMIN_PASSWORD)");
     throw new Error("Missing Directus credentials for live activity updates.");
   }
+
+  console.log(`Attempting Directus login with email: ${email} (Password length: ${password.length})`);
 
   const urls = await getDirectusUrls();
   let lastError = null;
@@ -62,12 +69,23 @@ async function getDirectusContext() {
   const urls = await getDirectusUrls();
 
   if (staticToken && !staticToken.includes("your-directus-static-token")) {
-    // With a static token, we still need to find a working URL
+    // With a static token, we still need to find a working URL and verify it works
     for (const url of urls) {
       try {
-        const testRes = await fetch(`${url}/server/ping`, { signal: AbortSignal.timeout(2000) });
-        if (testRes.ok) return { token: staticToken, url };
-      } catch (e) {}
+        console.log(`Testing Directus static token at: ${url}/users/me`);
+        const testRes = await fetch(`${url}/users/me`, { 
+          headers: { Authorization: `Bearer ${staticToken}` },
+          signal: AbortSignal.timeout(3000) 
+        });
+        if (testRes.ok) {
+          console.log(`Directus static token verified successfully at ${url}`);
+          return { token: staticToken, url };
+        } else {
+          console.warn(`Directus token check failed at ${url}: ${testRes.status}`);
+        }
+      } catch (e) {
+        console.warn(`Connection failed to ${url} during token check`);
+      }
     }
   }
 
