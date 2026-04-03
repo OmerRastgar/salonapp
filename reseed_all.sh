@@ -15,13 +15,6 @@ fi
 
 echo -e "${BLUE}>>> Starting Marketplace Restoration...${NC}"
 
-# 1.5 Check for Node.js dependencies
-if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
-    echo -e "${RED}Error: Node.js or npm not found on this server.${NC}"
-    echo -e "${BLUE}Please install Node.js (v18+) to run the asset uploader.${NC}"
-    exit 1
-fi
-
 # 2. Check for .env file
 if [ ! -f .env ]; then
     echo -e "${RED}Error: .env file not found in root. Please create it.${NC}"
@@ -33,18 +26,20 @@ DB_USER=$(grep -v '^#' .env | grep 'DB_USER' | cut -d '=' -f2)
 DB_PASS=$(grep -v '^#' .env | grep 'DB_PASSWORD' | cut -d '=' -f2)
 DB_NAME=$(grep -v '^#' .env | grep 'DB_DATABASE' | cut -d '=' -f2)
 
-# 4. Auto-detect database container ID
+# 4. Auto-detect container IDs
 DB_CONTAINER=$($COMPOSE ps -q database 2>/dev/null)
+FE_CONTAINER=$($COMPOSE ps -q frontend 2>/dev/null)
 
 if [ -z "$DB_CONTAINER" ]; then
     echo -e "${RED}Error: Could not find a running container for the 'database' service.${NC}"
     echo -e "${BLUE}Attempting to start services...${NC}"
-    $COMPOSE up -d database
+    $COMPOSE up -d database frontend
     sleep 5
     DB_CONTAINER=$($COMPOSE ps -q database)
+    FE_CONTAINER=$($COMPOSE ps -q frontend)
 fi
 
-echo -e "${BLUE}>>> Targeting Database Container: $DB_CONTAINER${NC}"
+echo -e "${BLUE}>>> Targeting DB: $DB_CONTAINER / FE: $FE_CONTAINER${NC}"
 
 # 5. Step 1: Base SQL Seeding
 echo -e "${BLUE}>>> Step 1: Resetting database and seeding core records...${NC}"
@@ -56,19 +51,15 @@ else
     exit 1
 fi
 
-# 5. Step 2: Binary Asset Upload
-echo -e "${BLUE}>>> Step 2: Uploading binary images to Directus...${NC}"
-cd frontend
-# We use npx tsx to execute the script. It will output UPDATE commands to stdout.
-npx tsx scripts/reseed_assets.ts > ../asset_updates.tmp 2>../asset_errors.log
+# 6. Step 2: Binary Asset Upload (Running INSIDE Frontend container)
+echo -e "${BLUE}>>> Step 2: Uploading binary images to Directus (via Frontend Container)...${NC}"
+docker exec -i $FE_CONTAINER npx tsx scripts/reseed_assets.ts > asset_updates.tmp 2>asset_errors.log
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✔ Assets uploaded successfully.${NC}"
 else
-    echo -e "${RED}✘ Failed to upload assets. Check frontend/asset_errors.log for details.${NC}"
-    cd ..
+    echo -e "${RED}✘ Failed to upload assets. Check asset_errors.log for details.${NC}"
     exit 1
 fi
-cd ..
 
 # 7. Step 3: Dynamic Image Linkage
 echo -e "${BLUE}>>> Step 3: Synchronizing image IDs...${NC}"
