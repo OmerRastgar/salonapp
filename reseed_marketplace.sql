@@ -82,7 +82,7 @@ INSERT INTO directus_policies (id, name, icon, description, ip_access, enforce_t
 ON CONFLICT (id) DO NOTHING;
 
 -- Assign this Policy to the Public Role (identifying Public role by its empty parent/null status)
-INSERT INTO directus_access (id, policy, role, user) 
+INSERT INTO directus_access (id, policy, role, "user") 
 SELECT gen_random_uuid(), 'abf8a154-5b1c-4a46-ac9c-7300570f4f17', id, NULL 
 FROM directus_roles 
 WHERE name = 'Public' 
