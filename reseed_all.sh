@@ -26,6 +26,20 @@ DB_USER=$(grep -v '^#' .env | grep 'DB_USER' | cut -d '=' -f2)
 DB_PASS=$(grep -v '^#' .env | grep 'DB_PASSWORD' | cut -d '=' -f2)
 DB_NAME=$(grep -v '^#' .env | grep 'DB_DATABASE' | cut -d '=' -f2)
 
+# 1.1 Fresh Build & Restart
+echo -e "${BLUE}>>> Step 0: Stopping and Rebuilding services to apply UI changes...${NC}"
+$COMPOSE down
+$COMPOSE up -d --build --remove-orphans
+if [ $? -eq 0 ]; then
+    echo -e "${GREEN}✔ Services rebuilt and restarted.${NC}"
+else
+    echo -e "${RED}✘ Failed to rebuild services. Check your Docker logs.${NC}"
+    exit 1
+fi
+
+echo -e "${BLUE}>>> Waiting 15s for services (Directus/DB) to stabilize...${NC}"
+sleep 15
+
 # 4. Auto-detect container IDs
 DB_CONTAINER=$($COMPOSE ps -q database 2>/dev/null)
 FE_CONTAINER=$($COMPOSE ps -q frontend 2>/dev/null)
@@ -45,12 +59,6 @@ if [ -z "$FE_CONTAINER" ] || [ -z "$DB_CONTAINER" ]; then
 fi
 
 echo -e "${BLUE}>>> Using command: $COMPOSE${NC}"
-
-# 1.1 Fresh Build & Restart
-echo -e "${BLUE}>>> Step 0: Stopping and Rebuilding services to apply UI changes...${NC}"
-$COMPOSE down
-$COMPOSE up -d --build
-if [ $? -eq 0 ]; then
     echo -e "${GREEN}✔ Services rebuilt and restarted.${NC}"
 else
     echo -e "${RED}✘ Failed to rebuild services. Check your Docker logs.${NC}"
