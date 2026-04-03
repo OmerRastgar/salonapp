@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Marketplace Restoration Master Script v3.2
+# Marketplace Restoration Master Script v4.0 (Disposable Seeder)
 # Use this to perform a one-click rebuild and reseeding of the entire stack.
 
 # Colors for output
@@ -9,58 +9,51 @@ BLUE='\033[0;34m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}>>> Starting Marketplace Restoration...${NC}"
+echo -e "${BLUE}>>> Starting Master Orchestrator (v4.0)...${NC}"
 
-# 1. Detect Docker Compose command
+# 1. Detect Docker Compose command and correct YAML file
 if docker compose version >/dev/null 2>&1; then
-    COMPOSE="docker compose"
+    BASE_COMPOSE="docker compose"
 elif docker-compose version >/dev/null 2>&1; then
-    COMPOSE="docker-compose"
+    BASE_COMPOSE="docker-compose"
 else
     echo -e "${RED}Error: Docker Compose not found.${NC}"
     exit 1
 fi
 
-echo -e "${BLUE}>>> Using command: $COMPOSE${NC}"
+COMPOSE_FILE="docker-compose.yml"
+if [ -f "docker-compose-simple.yml" ] && grep -q "frontend:" "docker-compose-simple.yml"; then
+    COMPOSE_FILE="docker-compose-simple.yml"
+elif [ -f "docker-compose-no-health.yml" ] && grep -q "frontend:" "docker-compose-no-health.yml"; then
+    COMPOSE_FILE="docker-compose-no-health.yml"
+fi
 
-# 2. Check for .env file
+COMPOSE="$BASE_COMPOSE -f $COMPOSE_FILE"
+echo -e "${BLUE}>>> Using command: $COMPOSE${NC}"
 if [ ! -f .env ]; then
     echo -e "${RED}Error: .env file not found in root. Please create it.${NC}"
     exit 1
 fi
 
-# 3. Step 0: Stop, Rebuild and Restart Services
-echo -e "${BLUE}>>> Step 0: Stopping and Rebuilding services to apply UI changes...${NC}"
-$COMPOSE down
-$COMPOSE up -d --build --remove-orphans
-if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✔ Services rebuilt and restarted.${NC}"
-else
-    echo -e "${RED}✘ Failed to rebuild services. Check your Docker logs.${NC}"
-    exit 1
-fi
-
-echo -e "${BLUE}>>> Waiting 30s for services (Directus/DB/Frontend) to stabilize...${NC}"
-sleep 30
-
-# 4. Load database credentials from .env
+# 3. Load database credentials from .env
 DB_USER=$(grep -v '^#' .env | grep 'DB_USER' | cut -d '=' -f2)
 DB_PASS=$(grep -v '^#' .env | grep 'DB_PASSWORD' | cut -d '=' -f2)
 DB_NAME=$(grep -v '^#' .env | grep 'DB_DATABASE' | cut -d '=' -f2)
 
-# 5. Auto-detect container IDs (Refreshed after restart)
-# We use greedy name matching to handle both 'salonapp' and 'saloonmarketplace' prefixes
-DB_CONTAINER=$(docker ps -a -q --filter "name=database" | head -n 1)
-FE_CONTAINER=$(docker ps -a -q --filter "name=frontend" | head -n 1)
+# 4. FULL REBUILD & RESTART (No Cache for UI sync)
+echo -e "${BLUE}>>> Step 0: Performing Fresh Build (No-Cache) to ensure UI sync...${NC}"
+$COMPOSE build --no-cache frontend
+$COMPOSE down
+$COMPOSE up -d --remove-orphans
+echo -e "${BLUE}>>> Waiting 20s for services to be Healthy...${NC}"
+sleep 20
 
-if [ -z "$FE_CONTAINER" ] || [ -z "$DB_CONTAINER" ]; then
-    echo -e "${RED}Error: Could not find your Docker containers (Database/Frontend).${NC}"
-    echo -e "${BLUE}Current containers running on this server:${NC}"
-    docker ps --format "table {{.Names}}\t{{.Status}}"
+# 5. Auto-detect Database container ID (Greedy match)
+DB_CONTAINER=$(docker ps -q --filter "name=database" | head -n 1)
+if [ -z "$DB_CONTAINER" ]; then
+    echo -e "${RED}Error: Could not find Database container.${NC}"
     exit 1
 fi
-
-echo -e "${BLUE}>>> Targeting DB: $DB_CONTAINER / FE: $FE_CONTAINER${NC}"
 
 # 6. Step 1: Base SQL Seeding
 echo -e "${BLUE}>>> Step 1: Resetting database and seeding core records...${NC}"
@@ -72,23 +65,23 @@ else
     exit 1
 fi
 
-# 7. Step 2: Binary Asset Upload (Permission-Safe in /tmp)
-echo -e "${BLUE}>>> Step 2: Uploading binary images to Directus...${NC}"
+# 7. Step 2: Binary Asset Upload (via Disposable Node Container)
+# This is much safer than running inside the production standalone container
+echo -e "${BLUE}>>> Step 2: Running Asset Uploader (via Disposable Container)...${NC}"
 
-# Ensure /tmp/Images_temp exist in container
-docker exec $FE_CONTAINER mkdir -p /tmp/Images_temp
+# We use the official node image, mount the local volume, and run the script
+# We set the network to match the compose network so it can find 'directus'
+NETWORK_NAME=$(docker network ls --filter "name=marketplace-network" -q | head -n 1)
 
-# Copy files into container at /tmp (always writable)
-docker cp frontend/scripts/reseed_assets.ts $FE_CONTAINER:/tmp/reseed_assets_temp.ts
-docker cp Images/. $FE_CONTAINER:/tmp/Images_temp/
-
-# Run the uploader inside container pointing to the /tmp/Images_temp folder
-# We use NODE_PATH to tell Node where to find the axios and tsx packages
-docker exec -e NODE_PATH="/app/node_modules" -e IMAGES_DIR="/tmp/Images_temp" -i $FE_CONTAINER npx tsx /tmp/reseed_assets_temp.ts > asset_updates.tmp 2>asset_errors.log
-
-# Clean up temp files in container (using root to ensure permission)
-docker exec -u root $FE_CONTAINER rm /tmp/reseed_assets_temp.ts
-docker exec -u root $FE_CONTAINER rm -rf /tmp/Images_temp
+docker run --rm \
+  --network "$NETWORK_NAME" \
+  -v "$(pwd):/project" \
+  -w /project/frontend \
+  -e DIRECTUS_INTERNAL_URL="http://directus:8055" \
+  -e DIRECTUS_TOKEN=$(grep 'DIRECTUS_TOKEN' .env | cut -d '=' -f2) \
+  -e IMAGES_DIR="/project/Images" \
+  node:20-alpine \
+  sh -c "npm install axios form-data dotenv && npx tsx scripts/reseed_assets.ts" > asset_updates.tmp 2>asset_errors.log
 
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✔ Assets uploaded successfully.${NC}"
@@ -107,8 +100,8 @@ else
     exit 1
 fi
 
-echo -e "${GREEN}>>> Restoration Complete! Your marketplace is now 100% functional.${NC}"
-echo -e "${BLUE}>>> Final Note: Captured placeholder IDs for Gallery manual check:${NC}"
+echo -e "${GREEN}>>> SUCCESS! All UI changes are built and all data is seeded.${NC}"
+echo -e "${BLUE}>>> Placeholder IDs for your Gallery check:${NC}"
 grep "Placeholder" asset_updates.tmp || echo "No extra placeholders found."
 
 # Final host cleanup

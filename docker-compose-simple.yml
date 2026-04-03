@@ -5,9 +5,9 @@ services:
     image: postgres:15
     restart: unless-stopped
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: K8$mN#pL2@qR9vW5!zX
-      POSTGRES_DB: postgres
+      POSTGRES_USER: 'admin'
+      POSTGRES_PASSWORD: 'K8$mN#pL2@qR9vW5!zX'
+      POSTGRES_DB: 'postgres'
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
     ports:
@@ -23,17 +23,17 @@ services:
     container_name: saloonmarketplace-directus-1
     restart: unless-stopped
     environment:
-      KEY: 7f3b9c2e6a8d1f5e9b4c0a3d7e8f2a6b9c1d5e8f0a3b7c2d6e9f1a4b8c3d7e2f
-      SECRET: 9a4f7c2e8b1d5f6a3c9e0b7d4f8a2c5e9b1d6f3a7c0e4b8d2f5a9c1e7b3d6f
+      KEY: '7f3b9c2e6a8d1f5e9b4c0a3d7e8f2a6b9c1d5e8f0a3b7c2d6e9f1a4b8c3d7e2f'
+      SECRET: '9a4f7c2e8b1d5f6a3c9e0b7d4f8a2c5e9b1d6f3a7c0e4b8d2f5a9c1e7b3d6f'
       DB_CLIENT: 'pg'
       DB_HOST: 'database'
       DB_PORT: 5432
-      DB_DATABASE: postgres
-      DB_USER: admin
-      DB_PASSWORD: K8$mN#pL2@qR9vW5!zX
-      ADMIN_EMAIL: admin@saloonmarketplace.com
-      ADMIN_PASSWORD: Admin@2024!Secure#Access
-      PUBLIC_URL: http://localhost:8055
+      DB_DATABASE: 'postgres'
+      DB_USER: 'admin'
+      DB_PASSWORD: 'K8$mN#pL2@qR9vW5!zX'
+      ADMIN_EMAIL: 'admin@saloonmarketplace.com'
+      ADMIN_PASSWORD: 'Admin@2024!Secure#Access'
+      PUBLIC_URL: 'http://localhost:8055'
       CORS_ENABLED: 'true'
       CORS_ORIGIN: 'http://localhost:3000,http://localhost:80'
       CORS_CREDENTIALS: 'true'
