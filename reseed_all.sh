@@ -30,13 +30,18 @@ DB_NAME=$(grep -v '^#' .env | grep 'DB_DATABASE' | cut -d '=' -f2)
 DB_CONTAINER=$($COMPOSE ps -q database 2>/dev/null)
 FE_CONTAINER=$($COMPOSE ps -q frontend 2>/dev/null)
 
+# Fallback discovery if compose ps -q fails (common on some setups)
+if [ -z "$FE_CONTAINER" ]; then
+    FE_CONTAINER=$(docker ps -q --filter "name=frontend")
+fi
 if [ -z "$DB_CONTAINER" ]; then
-    echo -e "${RED}Error: Could not find a running container for the 'database' service.${NC}"
-    echo -e "${BLUE}Attempting to start services...${NC}"
-    $COMPOSE up -d database frontend
-    sleep 5
-    DB_CONTAINER=$($COMPOSE ps -q database)
-    FE_CONTAINER=$($COMPOSE ps -q frontend)
+    DB_CONTAINER=$(docker ps -q --filter "name=database")
+fi
+
+if [ -z "$FE_CONTAINER" ] || [ -z "$DB_CONTAINER" ]; then
+    echo -e "${RED}Error: Could not find your Docker containers (Database/Frontend).${NC}"
+    echo -e "${BLUE}Please ensure your containers are running with 'docker compose up -d'${NC}"
+    exit 1
 fi
 
 echo -e "${BLUE}>>> Targeting DB: $DB_CONTAINER / FE: $FE_CONTAINER${NC}"
