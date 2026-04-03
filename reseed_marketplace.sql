@@ -75,16 +75,40 @@ INSERT INTO employee_schedules (id, employee_id, day_of_week, start_time, end_ti
 SELECT gen_random_uuid(), e.id, d, '09:00:00', '21:00:00', false FROM employees e cross join generate_series(0, 6) d;
 
 -- 6. PERMISSIONS (PUBLIC READ)
+-- 6. PERMISSIONS (DIRECTUS 11 POLICY SYSTEM)
+-- Create or ensure a Public Policy exists (Static ID for restoration)
+INSERT INTO directus_policies (id, name, icon, description, ip_access, enforce_tfa) VALUES
+('abf8a154-5b1c-4a46-ac9c-7300570f4f17', 'Public Access', 'public', 'Grant public read access to marketplace', NULL, false)
+ON CONFLICT (id) DO NOTHING;
+
+-- Assign this Policy to the Public Role (identifying Public role by its empty parent/null status)
+INSERT INTO directus_access (id, policy, role, user) 
+SELECT gen_random_uuid(), 'abf8a154-5b1c-4a46-ac9c-7300570f4f17', id, NULL 
+FROM directus_roles 
+WHERE name = 'Public' 
+OR (parent IS NULL AND name != 'Administrator')
+LIMIT 1
+ON CONFLICT DO NOTHING;
+
+-- Link common collections to this Policy
+DELETE FROM directus_permissions WHERE policy = 'abf8a154-5b1c-4a46-ac9c-7300570f4f17';
 INSERT INTO directus_permissions (policy, collection, action, permissions, validation) VALUES
-('abf8a154-5b1c-4a46-ac9c-7300570f4f17', 'working_hours', 'read', '{}', '{}'),
-('abf8a154-5b1c-4a46-ac9c-7300570f4f17', 'employee_services', 'read', '{}', '{}'),
-('abf8a154-5b1c-4a46-ac9c-7300570f4f17', 'employee_schedules', 'read', '{}', '{}'),
-('abf8a154-5b1c-4a46-ac9c-7300570f4f17', 'employees', 'read', '{}', '{}'),
-('abf8a154-5b1c-4a46-ac9c-7300570f4f17', 'reviews', 'read', '{}', '{}'),
-('abf8a154-5b1c-4a46-ac9c-7300570f4f17', 'reviews', 'create', '{}', '{}'),
 ('abf8a154-5b1c-4a46-ac9c-7300570f4f17', 'vendors', 'read', '{}', '{}'),
 ('abf8a154-5b1c-4a46-ac9c-7300570f4f17', 'locations', 'read', '{}', '{}'),
-('abf8a154-5b1c-4a46-ac9c-7300570f4f17', 'categories', 'read', '{}', '{}')
-ON CONFLICT DO NOTHING;
+('abf8a154-5b1c-4a46-ac9c-7300570f4f17', 'categories', 'read', '{}', '{}'),
+('abf8a154-5b1c-4a46-ac9c-7300570f4f17', 'services', 'read', '{}', '{}'),
+('abf8a154-5b1c-4a46-ac9c-7300570f4f17', 'employees', 'read', '{}', '{}'),
+('abf8a154-5b1c-4a46-ac9c-7300570f4f17', 'employee_services', 'read', '{}', '{}'),
+('abf8a154-5b1c-4a46-ac9c-7300570f4f17', 'employee_schedules', 'read', '{}', '{}'),
+('abf8a154-5b1c-4a46-ac9c-7300570f4f17', 'working_hours', 'read', '{}', '{}'),
+('abf8a154-5b1c-4a46-ac9c-7300570f4f17', 'directus_files', 'read', '{}', '{}'),
+('abf8a154-5b1c-4a46-ac9c-7300570f4f17', 'reviews', 'read', '{}', '{}');
+
+-- Locations Seeding
+INSERT INTO locations (id, name, slug, status, sort_order) VALUES
+('loc-001', 'Karachi', 'karachi', 'active', 1),
+('loc-002', 'Lahore', 'lahore', 'active', 2),
+('loc-003', 'Islamabad', 'islamabad', 'active', 3)
+ON CONFLICT (id) DO NOTHING;
 
 COMMIT;
