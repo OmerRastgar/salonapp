@@ -99,19 +99,20 @@ BEGIN
     -- 2. Clear old marketplace permissions for this policy
     DELETE FROM directus_permissions WHERE policy = public_policy_id;
 
-    -- 3. Inject new Marketplace permissions (Unlocking ALL fields with ["*"])
+    -- 3. Inject new Marketplace permissions (Unlocking ALL fields with ARRAY['*'])
+    -- We use the ARRAY['*'] syntax to ensure compatibility with PostgreSQL array types in Directus 11
     INSERT INTO directus_permissions (policy, collection, action, permissions, validation, fields) VALUES
-    (public_policy_id, 'vendors', 'read', '{}', '{}', '["*"]'),
-    (public_policy_id, 'locations', 'read', '{}', '{}', '["*"]'),
-    (public_policy_id, 'categories', 'read', '{}', '{}', '["*"]'),
-    (public_policy_id, 'services', 'read', '{}', '{}', '["*"]'),
-    (public_policy_id, 'employees', 'read', '{}', '{}', '["*"]'),
-    (public_policy_id, 'employee_services', 'read', '{}', '{}', '["*"]'),
-    (public_policy_id, 'employee_schedules', 'read', '{}', '{}', '["*"]'),
-    (public_policy_id, 'working_hours', 'read', '{}', '{}', '["*"]'),
-    (public_policy_id, 'directus_files', 'read', '{}', '{}', '["*"]'),
-    (public_policy_id, 'reviews', 'read', '{}', '{}', '["*"]'),
-    (public_policy_id, 'reviews', 'create', '{}', '{}', '["*"]');
+    (public_policy_id, 'vendors', 'read', '{}', '{}', ARRAY['*']),
+    (public_policy_id, 'locations', 'read', '{}', '{}', ARRAY['*']),
+    (public_policy_id, 'categories', 'read', '{}', '{}', ARRAY['*']),
+    (public_policy_id, 'services', 'read', '{}', '{}', ARRAY['*']),
+    (public_policy_id, 'employees', 'read', '{}', '{}', ARRAY['*']),
+    (public_policy_id, 'employee_services', 'read', '{}', '{}', ARRAY['*']),
+    (public_policy_id, 'employee_schedules', 'read', '{}', '{}', ARRAY['*']),
+    (public_policy_id, 'working_hours', 'read', '{}', '{}', ARRAY['*']),
+    (public_policy_id, 'directus_files', 'read', '{}', '{}', ARRAY['*']),
+    (public_policy_id, 'reviews', 'read', '{}', '{}', ARRAY['*']),
+    (public_policy_id, 'reviews', 'create', '{}', '{}', ARRAY['*']);
 END $$;
 
 -- Locations Seeding
