@@ -56,22 +56,23 @@ else
     exit 1
 fi
 
-# 6. Step 2: Binary Asset Upload (Inside Project Root for Node resolution)
+# 6. Step 2: Binary Asset Upload (Permission-Safe in /tmp)
 echo -e "${BLUE}>>> Step 2: Uploading binary images to Directus...${NC}"
 
-# Ensure /app/Images_temp exists in container
-docker exec $FE_CONTAINER mkdir -p /app/Images_temp
+# Ensure /tmp/Images_temp exists in container
+docker exec $FE_CONTAINER mkdir -p /tmp/Images_temp
 
-# Copy files into container at the app root so node_modules are accessible
-docker cp frontend/scripts/reseed_assets.ts $FE_CONTAINER:/app/reseed_assets_temp.ts
-docker cp Images/. $FE_CONTAINER:/app/Images_temp/
+# Copy files into container at /tmp (always writable)
+docker cp frontend/scripts/reseed_assets.ts $FE_CONTAINER:/tmp/reseed_assets_temp.ts
+docker cp Images/. $FE_CONTAINER:/tmp/Images_temp/
 
-# Run the uploader inside container pointing to the /app/Images_temp folder
-docker exec -e IMAGES_DIR="/app/Images_temp" -i $FE_CONTAINER npx tsx reseed_assets_temp.ts > asset_updates.tmp 2>asset_errors.log
+# Run the uploader inside container pointing to the /tmp/Images_temp folder
+# We use NODE_PATH to tell Node where to find the axios and tsx packages
+docker exec -e NODE_PATH="/app/node_modules" -e IMAGES_DIR="/tmp/Images_temp" -i $FE_CONTAINER npx tsx /tmp/reseed_assets_temp.ts > asset_updates.tmp 2>asset_errors.log
 
 # Clean up temp files in container
-docker exec $FE_CONTAINER rm /app/reseed_assets_temp.ts
-docker exec $FE_CONTAINER rm -rf /app/Images_temp
+docker exec $FE_CONTAINER rm /tmp/reseed_assets_temp.ts
+docker exec $FE_CONTAINER rm -rf /tmp/Images_temp
 
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✔ Assets uploaded successfully.${NC}"
