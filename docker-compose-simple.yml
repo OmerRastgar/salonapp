@@ -3,7 +3,6 @@ version: '3.8'
 services:
   database:
     image: postgres:15
-    container_name: saloonmarketplace-database-1
     restart: unless-stopped
     environment:
       POSTGRES_USER: admin
