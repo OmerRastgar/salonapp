@@ -135,16 +135,25 @@ export interface Booking {
 }
 
 const isServer = typeof window === 'undefined';
-// Use a fallback for build-time static generation if the env var is missing
-const DIRECTUS_URL = process.env.NEXT_PUBLIC_DIRECTUS_URL || 'http://localhost:8055';
-const publicUrl = process.env.NEXT_PUBLIC_DIRECTUS_URL || "";
-const internalUrl = process.env.DIRECTUS_INTERNAL_URL || publicUrl;
 
-// Use internal URL for server-side fetches (Docker network) and public URL for client-side fetches
-// If publicUrl is empty or localhost, use an empty string for the browser to trigger relative pathing
-const browserUrl = (!publicUrl || publicUrl.includes('localhost') || publicUrl.includes('127.0.0.1')) ? '' : publicUrl;
-const directusUrl = isServer ? internalUrl : browserUrl;
-const directus = createDirectus(directusUrl || 'http://directus:8055').with(rest());
+// Setup Directus URL logic
+const publicUrl = process.env.NEXT_PUBLIC_DIRECTUS_URL || "";
+const internalUrl = process.env.DIRECTUS_INTERNAL_URL || "http://directus:8055";
+
+let finalUrl = "";
+if (isServer) {
+  // Server-side: Prefer internal Docker URL for speed/reliability
+  finalUrl = internalUrl;
+} else {
+  // Browser-side: Use publicUrl if set, otherwise fallback to relative path (empty string)
+  // We explicitly avoid using localhost/internal names here to prevent browser connection errors
+  finalUrl = (publicUrl && !publicUrl.includes('localhost') && !publicUrl.includes('127.0.0.1')) 
+    ? publicUrl 
+    : "";
+}
+
+console.log(`[Directus] Initializing client with URL: "${finalUrl}" (Server: ${isServer})`);
+const directus = createDirectus(finalUrl).with(rest());
 
 export class SimpleDirectusService {
   static async getVendors(options: {
