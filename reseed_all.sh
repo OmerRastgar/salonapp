@@ -74,7 +74,7 @@ docker run --rm \
   -e DIRECTUS_TOKEN=$(grep 'DIRECTUS_TOKEN' .env | cut -d '=' -f2) \
   -e IMAGES_DIR="/project/Images" \
   node:20-alpine \
-  sh -c "npm install axios form-data dotenv && npx tsx scripts/reseed_assets.ts" > asset_updates.tmp 2>asset_errors.log
+  sh -c "npm install axios form-data dotenv --legacy-peer-deps && npx tsx scripts/reseed_assets.ts" > asset_updates.tmp 2>asset_errors.log
 
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✔ Assets uploaded successfully.${NC}"
