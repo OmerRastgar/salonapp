@@ -57,6 +57,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_DIRECTUS_URL=${PUBLIC_URL}
     restart: always
     environment:
       - NEXT_PUBLIC_DIRECTUS_URL=${PUBLIC_URL}

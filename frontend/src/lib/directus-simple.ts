@@ -135,6 +135,8 @@ export interface Booking {
 }
 
 const isServer = typeof window === 'undefined';
+// Use a fallback for build-time static generation if the env var is missing
+const DIRECTUS_URL = process.env.NEXT_PUBLIC_DIRECTUS_URL || 'http://localhost:8055';
 const publicUrl = process.env.NEXT_PUBLIC_DIRECTUS_URL || "";
 const internalUrl = process.env.DIRECTUS_INTERNAL_URL || publicUrl;
 
