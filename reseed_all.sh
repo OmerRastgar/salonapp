@@ -12,15 +12,20 @@ NC='\033[0m' # No Color
 
 echo -e "${BLUE}>>> Starting Data & Asset Seeder (v5.0)...${NC}"
 
-# 1. Detect Docker Compose command
+# 1. Detect Docker Compose command and correct YAML file
 if docker compose version >/dev/null 2>&1; then
-    COMPOSE="docker compose"
+    BASE_COMPOSE="docker compose"
 elif docker-compose version >/dev/null 2>&1; then
-    COMPOSE="docker-compose"
+    BASE_COMPOSE="docker-compose"
 else
     echo -e "${RED}Error: Docker Compose not found.${NC}"
     exit 1
 fi
+
+# 1.1 Fix Permissions (Directus needs write access to its volumes)
+echo -e "${BLUE}>>> Ensuring data folder permissions...${NC}"
+mkdir -p ./data/uploads ./data/database
+chmod -R 777 ./data/uploads ./data/database 2>/dev/null || sudo chmod -R 777 ./data/uploads ./data/database
 
 # 2. Check for .env file
 if [ ! -f .env ]; then
