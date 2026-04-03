@@ -145,11 +145,9 @@ if (isServer) {
   // Server-side: Prefer internal Docker URL for speed/reliability
   finalUrl = internalUrl;
 } else {
-  // Browser-side: Use publicUrl if set, otherwise fallback to relative path (empty string)
-  // We explicitly avoid using localhost/internal names here to prevent browser connection errors
-  finalUrl = (publicUrl && !publicUrl.includes('localhost') && !publicUrl.includes('127.0.0.1')) 
-    ? publicUrl 
-    : "";
+  // Browser-side: ALWAYS use a relative path ("") in production.
+  // This forces the browser to use Port 80/443 (via Nginx) and avoids Port 8055 firewall issues.
+  finalUrl = "";
 }
 
 console.log(`[Directus] Initializing client with URL: "${finalUrl}" (Server: ${isServer})`);
