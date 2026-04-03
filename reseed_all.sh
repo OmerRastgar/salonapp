@@ -3,13 +3,17 @@
 # Marketplace Unified Reseeding Script (Linux Server Edition)
 # This script restoration data and binary assets in a single run.
 
-# 1. Colors for output
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-RED='\033[0;31m'
-NC='\033[0m' # No Color
+# 1. Detect Docker Compose Command
+if docker compose version >/dev/null 2>&1; then
+    COMPOSE="docker compose"
+elif docker-compose version >/dev/null 2>&1; then
+    COMPOSE="docker-compose"
+else
+    echo -e "${RED}Error: Neither 'docker compose' nor 'docker-compose' found.${NC}"
+    exit 1
+fi
 
-echo -e "${BLUE}>>> Starting Marketplace Restoration...${NC}"
+echo -e "${BLUE}>>> Using command: $COMPOSE${NC}"
 
 # 2. Check for .env file
 if [ ! -f .env ]; then
@@ -18,16 +22,26 @@ if [ ! -f .env ]; then
 fi
 
 # 3. Load database credentials from .env
-# We use standard grep/sed to be more compatible with different Linux distros
 DB_USER=$(grep -v '^#' .env | grep 'DB_USER' | cut -d '=' -f2)
 DB_PASS=$(grep -v '^#' .env | grep 'DB_PASSWORD' | cut -d '=' -f2)
 DB_NAME=$(grep -v '^#' .env | grep 'DB_DATABASE' | cut -d '=' -f2)
 
-CONTAINER_NAME="saloonmarketplace-database-1"
+# 4. Auto-detect database container ID
+DB_CONTAINER=$($COMPOSE ps -q database 2>/dev/null)
 
-# 4. Step 1: Base SQL Seeding
+if [ -z "$DB_CONTAINER" ]; then
+    echo -e "${RED}Error: Could not find a running container for the 'database' service.${NC}"
+    echo -e "${BLUE}Attempting to start services...${NC}"
+    $COMPOSE up -d database
+    sleep 5
+    DB_CONTAINER=$($COMPOSE ps -q database)
+fi
+
+echo -e "${BLUE}>>> Targeting Database Container: $DB_CONTAINER${NC}"
+
+# 5. Step 1: Base SQL Seeding
 echo -e "${BLUE}>>> Step 1: Resetting database and seeding core records...${NC}"
-cat reseed_marketplace.sql | docker exec -i $CONTAINER_NAME psql -U $DB_USER -d $DB_NAME
+cat reseed_marketplace.sql | docker exec -i $DB_CONTAINER psql -U $DB_USER -d $DB_NAME
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✔ Base data seeded successfully.${NC}"
 else
@@ -49,9 +63,9 @@ else
 fi
 cd ..
 
-# 6. Step 3: Dynamic Image Linkage
+# 7. Step 3: Dynamic Image Linkage
 echo -e "${BLUE}>>> Step 3: Synchronizing image IDs...${NC}"
-grep "UPDATE" asset_updates.tmp | docker exec -i $CONTAINER_NAME psql -U $DB_USER -d $DB_NAME
+grep "UPDATE" asset_updates.tmp | docker exec -i $DB_CONTAINER psql -U $DB_USER -d $DB_NAME
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✔ Image links synchronized.${NC}"
     rm asset_updates.tmp
