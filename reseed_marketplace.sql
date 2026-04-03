@@ -75,44 +75,29 @@ INSERT INTO employee_schedules (id, employee_id, day_of_week, start_time, end_ti
 SELECT gen_random_uuid(), e.id, d, '09:00:00', '21:00:00', false FROM employees e cross join generate_series(0, 6) d;
 
 -- 6. PERMISSIONS (PUBLIC READ)
--- 6. PERMISSIONS (DIRECTUS 11 SMART DISCOVERY)
--- 1. Find or create the Public Access Policy
-DO $$
-DECLARE
-    public_policy_id UUID;
-BEGIN
-    -- Try to find an existing policy linked to Public access (Role IS NULL and User IS NULL)
-    SELECT policy INTO public_policy_id FROM directus_access WHERE role IS NULL AND "user" IS NULL LIMIT 1;
+    -- 1. WIPE THE SLATE (Global cleanup of any conflicting marketplace rules)
+    -- This kills the "Mystery Policies" we found in your diagnostic
+    DELETE FROM directus_permissions WHERE collection IN (SELECT unnest(target_collections)) AND action = 'read';
+
+    -- 2. Ensure at least one Public Policy exists
+    INSERT INTO directus_policies (id, name, icon, description, ip_access, enforce_tfa) 
+    VALUES ('abf8a154-5b1c-4a46-ac9c-7300570f4f17', 'Public Access', 'public', 'Master Public Unlock', NULL, false)
+    ON CONFLICT (id) DO NOTHING;
+
+    INSERT INTO directus_access (id, policy, role, "user") 
+    VALUES (gen_random_uuid(), 'abf8a154-5b1c-4a46-ac9c-7300570f4f17', NULL, NULL)
+    ON CONFLICT DO NOTHING;
+
+    -- 3. GLOBAL APPLY: Grant full field read access to EVERY policy for our collections
+    FOR p IN SELECT id FROM directus_policies LOOP
+        FOREACH coll IN ARRAY target_collections LOOP
+            INSERT INTO directus_permissions (policy, collection, action, permissions, validation, fields)
+            VALUES (p.id, coll, 'read', '{}', '{}', ARRAY['*']);
+        END LOOP;
+    END LOOP;
     
-    -- If not found, create a new one
-    IF public_policy_id IS NULL THEN
-        public_policy_id := 'abf8a154-5b1c-4a46-ac9c-7300570f4f17';
-        INSERT INTO directus_policies (id, name, icon, description, ip_access, enforce_tfa) 
-        VALUES (public_policy_id, 'Public Access', 'public', 'Grant public read access to marketplace', NULL, false)
-        ON CONFLICT (id) DO NOTHING;
-        
-        INSERT INTO directus_access (id, policy, role, "user") 
-        VALUES (gen_random_uuid(), public_policy_id, NULL, NULL)
-        ON CONFLICT DO NOTHING;
-    END IF;
-
-    -- 2. Clear old marketplace permissions for this policy
-    DELETE FROM directus_permissions WHERE policy = public_policy_id;
-
-    -- 3. Inject new Marketplace permissions (Unlocking ALL fields with ARRAY['*'])
-    -- We use the ARRAY['*'] syntax to ensure compatibility with PostgreSQL array types in Directus 11
-    INSERT INTO directus_permissions (policy, collection, action, permissions, validation, fields) VALUES
-    (public_policy_id, 'vendors', 'read', '{}', '{}', ARRAY['*']),
-    (public_policy_id, 'locations', 'read', '{}', '{}', ARRAY['*']),
-    (public_policy_id, 'categories', 'read', '{}', '{}', ARRAY['*']),
-    (public_policy_id, 'services', 'read', '{}', '{}', ARRAY['*']),
-    (public_policy_id, 'employees', 'read', '{}', '{}', ARRAY['*']),
-    (public_policy_id, 'employee_services', 'read', '{}', '{}', ARRAY['*']),
-    (public_policy_id, 'employee_schedules', 'read', '{}', '{}', ARRAY['*']),
-    (public_policy_id, 'working_hours', 'read', '{}', '{}', ARRAY['*']),
-    (public_policy_id, 'directus_files', 'read', '{}', '{}', ARRAY['*']),
-    (public_policy_id, 'reviews', 'read', '{}', '{}', ARRAY['*']),
-    (public_policy_id, 'reviews', 'create', '{}', '{}', ARRAY['*']);
+    -- 4. ENSURE ACTIVE STATUS: Force all salons to be visible
+    UPDATE vendors SET status = 'active';
 END $$;
 
 -- Locations Seeding
