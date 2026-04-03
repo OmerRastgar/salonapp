@@ -141,8 +141,10 @@ const publicUrl = process.env.NEXT_PUBLIC_DIRECTUS_URL || "";
 const internalUrl = process.env.DIRECTUS_INTERNAL_URL || publicUrl;
 
 // Use internal URL for server-side fetches (Docker network) and public URL for client-side fetches
-const directusUrl = isServer ? internalUrl : publicUrl;
-const directus = createDirectus(directusUrl).with(rest());
+// If publicUrl is empty or localhost, use an empty string for the browser to trigger relative pathing
+const browserUrl = (!publicUrl || publicUrl.includes('localhost') || publicUrl.includes('127.0.0.1')) ? '' : publicUrl;
+const directusUrl = isServer ? internalUrl : browserUrl;
+const directus = createDirectus(directusUrl || 'http://directus:8055').with(rest());
 
 export class SimpleDirectusService {
   static async getVendors(options: {
