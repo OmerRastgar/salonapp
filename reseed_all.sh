@@ -13,7 +13,14 @@ else
     exit 1
 fi
 
-echo -e "${BLUE}>>> Using command: $COMPOSE${NC}"
+echo -e "${BLUE}>>> Starting Marketplace Restoration...${NC}"
+
+# 1.5 Check for Node.js dependencies
+if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
+    echo -e "${RED}Error: Node.js or npm not found on this server.${NC}"
+    echo -e "${BLUE}Please install Node.js (v18+) to run the asset uploader.${NC}"
+    exit 1
+fi
 
 # 2. Check for .env file
 if [ ! -f .env ]; then
