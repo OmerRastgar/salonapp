@@ -56,9 +56,19 @@ else
     exit 1
 fi
 
-# 6. Step 2: Binary Asset Upload (Running INSIDE Frontend container)
-echo -e "${BLUE}>>> Step 2: Uploading binary images to Directus (via Frontend Container)...${NC}"
-docker exec -i $FE_CONTAINER npx tsx scripts/reseed_assets.ts > asset_updates.tmp 2>asset_errors.log
+# 6. Step 2: Binary Asset Upload (Self-Contained)
+echo -e "${BLUE}>>> Step 2: Uploading binary images to Directus...${NC}"
+
+# Ensure /tmp/scripts and /tmp/Images exist in container
+docker exec $FE_CONTAINER mkdir -p /tmp/scripts /tmp/Images
+
+# Copy files into container
+docker cp frontend/scripts/reseed_assets.ts $FE_CONTAINER:/tmp/reseed_assets.ts
+docker cp Images/. $FE_CONTAINER:/tmp/Images/
+
+# Run the uploader inside container pointing to the /tmp/Images folder
+docker exec -e IMAGES_DIR="/tmp/Images" -i $FE_CONTAINER npx tsx /tmp/reseed_assets.ts > asset_updates.tmp 2>asset_errors.log
+
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✔ Assets uploaded successfully.${NC}"
 else
