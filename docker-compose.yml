@@ -45,7 +45,7 @@ services:
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - PUBLIC_URL=${PUBLIC_URL}
       - CORS_ENABLED=true
-      - CORS_ORIGIN=true
+      - CORS_ORIGIN=http://144.91.113.237
       - CORS_METHODS=GET,POST,PATCH,DELETE,OPTIONS
       - CORS_ALLOWED_HEADERS=Content-Type,Authorization
       - CORS_CREDENTIALS=true
@@ -66,11 +66,11 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - NEXT_PUBLIC_DIRECTUS_URL=${PUBLIC_URL}
+        - NEXT_PUBLIC_DIRECTUS_URL=${NEXT_PUBLIC_DIRECTUS_URL}
     restart: always
     environment:
-      - NEXT_PUBLIC_DIRECTUS_URL=${PUBLIC_URL}
-      - DIRECTUS_INTERNAL_URL=http://directus:8055
+      - NEXT_PUBLIC_DIRECTUS_URL=${NEXT_PUBLIC_DIRECTUS_URL}
+      - DIRECTUS_INTERNAL_URL=${DIRECTUS_INTERNAL_URL}
       - ADMIN_EMAIL=${ADMIN_EMAIL}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
     ports:

@@ -24,8 +24,8 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'http',
-        hostname: '127.0.0.1',
-        port: '8055',
+        hostname: '144.91.113.237',
+        port: '',
         pathname: '/assets/**',
       },
       {
