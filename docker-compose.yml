@@ -46,6 +46,9 @@ services:
       - PUBLIC_URL=${PUBLIC_URL}
       - CORS_ENABLED=true
       - CORS_ORIGIN=true
+      - CORS_METHODS=GET,POST,PATCH,DELETE,OPTIONS
+      - CORS_ALLOWED_HEADERS=Content-Type,Authorization
+      - CORS_CREDENTIALS=true
       - STORAGE_LOCATIONS=local
       - STORAGE_LOCAL_DRIVER=local
       - STORAGE_LOCAL_ROOT=/directus/uploads

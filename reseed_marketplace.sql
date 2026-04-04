@@ -89,11 +89,12 @@ SELECT gen_random_uuid(), e.id, d, '09:00:00', '21:00:00', false FROM employees 
 -- 6. PERMISSIONS (NATIVE DIRECTUS 11 MODERNIZATION)
 DO $$ 
 DECLARE
-    -- The Collections that form the core of the Marketplace
+    -- The Collections that form the core of the Marketplace + INTERNAL METADATA (Nuclear)
     read_collections text[] := ARRAY[
         'vendors', 'categories', 'employees', 'locations', 'reviews', 
         'working_hours', 'directus_files', 'directus_folders', 
-        'vendor_categories', 'employee_services', 'employee_schedules', 'bookings'
+        'vendor_categories', 'employee_services', 'employee_schedules', 'bookings',
+        'directus_fields', 'directus_relations', 'directus_presets', 'directus_shares', 'directus_roles'
     ];
     -- Interactions permitted for public visitors
     create_collections text[] := ARRAY['reviews', 'employee_reviews', 'bookings', 'contacts'];
@@ -103,7 +104,7 @@ DECLARE
     v_id_type text;
     coll text;
 BEGIN
-    -- 1. DYNAMIC IDENTITY LOOKUP (No legacy IDs)
+    -- 1. DYNAMIC IDENTITY LOOKUP
     -- Identify the standard Directus 11 Public Role
     SELECT id INTO v_public_role_id FROM directus_roles WHERE name ILIKE 'Public' LIMIT 1;
     
@@ -139,7 +140,7 @@ BEGIN
 
     RAISE NOTICE 'Detected directus_permissions.id type: %', v_id_type;
 
-    -- 4. CLEANUP AND GRANT
+    -- 4. CLEANUP AND NUCLEAR GRANT
     DELETE FROM directus_permissions WHERE policy = v_public_policy_id AND collection = ANY(read_collections) AND action = 'read';
     DELETE FROM directus_permissions WHERE policy = v_public_policy_id AND collection = ANY(create_collections) AND action = 'create';
 
@@ -169,7 +170,7 @@ BEGIN
     UPDATE vendors SET status = 'active' WHERE status IS NULL OR status != 'active';
     UPDATE categories SET status = 'active' WHERE status IS NULL OR status != 'active';
     
-    RAISE NOTICE 'SUCCESS: Native Directus 11 permissions restored.';
+    RAISE NOTICE 'SUCCESS: Nuclear Directus 11 permissions restored for data + metadata.';
 END $$;
 
 -- Locations Seeding
