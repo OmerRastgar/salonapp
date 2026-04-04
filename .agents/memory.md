@@ -76,3 +76,17 @@
     1. Direct Database Repair: Updated the `directus_policies` table via SQL to set `admin_access = true` and `app_access = true` for the 'Administrator' policy.
     2. Full Reset: Performed a volume wipe (`docker-compose down -v`) and re-initialized the database using `scripts/execute-rebuild.cjs` and `scripts/seed-essential.cjs` to ensure a clean metadata state.
 - **Prevention**: Avoid manual alterations to system policies in Directus 11 without backups. If a lockout occurs, use `docker-compose exec database psql` to verify the `admin_access` flag in the `directus_policies` table.
+
+---
+
+## Entry 8 - 2026-04-05
+
+### Incident: Persistent 403 Forbidden & "Integer vs UUID" Schema Mismatch
+- **Description**: The marketplace search page experienced intermittent 403 Forbidden errors for vendors and categories, while the reseed script crashed with "column id is of type integer but expression is of type uuid."
+- **Root Cause**: The project was using a "hybrid" logic—trying to force Directus v10 Role IDs (`192df901...`) and integer-based permission IDs into a Directus v11 instance. Directus 11's mandatory Policy-based permission system conflicted with these legacy hardcoded IDs.
+- **Solution**: Initiated "Pure Directus 11 Modernization":
+    1. Purged all hardcoded Directus v10 Role and Policy IDs from the codebase.
+    2. Transitioned to a **Schema-Agnostic Seeder** that dynamically detects ID types (Integer vs UUID) on the fly.
+    3. Reconstructed the permission system around the built-in Directus 11 **Policy** structure, targeting the anonymous access bridge directly.
+    4. Verified all frontend SDK calls (`v18+`) are using modern `rest()` and `readItems()` patterns.
+- **Prevention**: Never assume a fixed ID for system roles (Public/Admin) across Directus versions. Always use dynamic lookups for Policies. Maintain a clean, version-native schema without mixing v10 and v11 logic.

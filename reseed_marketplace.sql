@@ -86,74 +86,90 @@ INSERT INTO employee_services (id, employee_id, name, price, duration_minutes, i
 INSERT INTO employee_schedules (id, employee_id, day_of_week, start_time, end_time, is_closed)
 SELECT gen_random_uuid(), e.id, d, '09:00:00', '21:00:00', false FROM employees e cross join generate_series(0, 6) d;
 
--- 6. PERMISSIONS (ORIGINAL UUID RECONSTRUCTION)
+-- 6. PERMISSIONS (NATIVE DIRECTUS 11 MODERNIZATION)
 DO $$ 
 DECLARE
-    -- The Collections that WORKED previously
+    -- The Collections that form the core of the Marketplace
     read_collections text[] := ARRAY[
         'vendors', 'categories', 'employees', 'locations', 'reviews', 
         'working_hours', 'directus_files', 'directus_folders', 
         'vendor_categories', 'employee_services', 'employee_schedules', 'bookings'
     ];
-    -- Interactions that must be publicly available
+    -- Interactions permitted for public visitors
     create_collections text[] := ARRAY['reviews', 'employee_reviews', 'bookings', 'contacts'];
     
-    -- ORIGINAL UUIDs from previous working files
-    ORIGINAL_PUBLIC_ROLE_ID uuid := '192df901-9d32-45ec-9b4e-60faf5feac5c';
-    ORIGINAL_PUBLIC_POLICY_ID uuid := 'abf8a154-5b1c-4a46-ac9c-7300570f4f17';
-    
-    p record;
+    v_public_role_id uuid;
+    v_public_policy_id uuid;
+    v_id_type text;
     coll text;
-    applied_count int := 0;
 BEGIN
-    -- 1. ENSURE ORIGINAL POLICY EXISTS
-    INSERT INTO directus_policies (id, name, icon, description, ip_access, enforce_tfa, admin_access, app_access)
-    VALUES (ORIGINAL_PUBLIC_POLICY_ID, 'Public Access', 'public', 'Original marketplace access policy', NULL, false, false, false)
-    ON CONFLICT (id) DO NOTHING;
-
-    -- 2. ENSURE ORIGINAL PUBLIC ROLE EXISTS & LINKED
-    -- If the role is missing, we create it; if it exists, we link it to the policy.
-    INSERT INTO directus_roles (id, name, icon, description)
-    VALUES (ORIGINAL_PUBLIC_ROLE_ID, 'Public', 'public', 'Original public role')
-    ON CONFLICT (id) DO NOTHING;
-
-    -- Force linkage in directus_access
-    DELETE FROM directus_access WHERE role = ORIGINAL_PUBLIC_ROLE_ID OR (role IS NULL AND "user" IS NULL);
+    -- 1. DYNAMIC IDENTITY LOOKUP (No legacy IDs)
+    -- Identify the standard Directus 11 Public Role
+    SELECT id INTO v_public_role_id FROM directus_roles WHERE name ILIKE 'Public' LIMIT 1;
     
-    INSERT INTO directus_access (id, policy, role)
-    VALUES (gen_random_uuid(), ORIGINAL_PUBLIC_POLICY_ID, ORIGINAL_PUBLIC_ROLE_ID),
-           (gen_random_uuid(), ORIGINAL_PUBLIC_POLICY_ID, NULL);
+    IF v_public_role_id IS NULL THEN
+        RAISE WARNING 'Standard Public role not found. Attempting to locate policy by anonymous access...';
+        SELECT policy INTO v_public_policy_id FROM directus_access WHERE role IS NULL AND "user" IS NULL LIMIT 1;
+    ELSE
+        RAISE NOTICE 'Found Public Role: %', v_public_role_id;
+        SELECT policy INTO v_public_policy_id FROM directus_access WHERE role = v_public_role_id LIMIT 1;
+    END IF;
 
-    -- 3. APPLY BLANKET GRANT TO THE ORIGINAL POLICY AND ALL OTHER NON-ADMIN POLICIES
-    -- This ensures total coverage across any policy Directus might be using.
-    FOR p IN SELECT id, name FROM directus_policies WHERE admin_access = false LOOP
+    -- 2. FAIL-SAFE POLICY ENSURANCE
+    IF v_public_policy_id IS NULL THEN
+        v_public_policy_id := gen_random_uuid();
+        INSERT INTO directus_policies (id, name, description, admin_access, app_access)
+        VALUES (v_public_policy_id, 'Marketplace Public Access', 'Native Directus 11 policy for public marketplace reading', false, false);
         
-        RAISE NOTICE 'Restoring Permissions to Policy: % (%)', p.name, p.id;
+        -- Link it to the Public Role and Anonymous Access
+        IF v_public_role_id IS NOT NULL THEN
+            INSERT INTO directus_access (id, policy, role) VALUES (gen_random_uuid(), v_public_policy_id, v_public_role_id);
+        END IF;
+        INSERT INTO directus_access (id, policy, role) VALUES (gen_random_uuid(), v_public_policy_id, NULL);
+        
+        RAISE NOTICE 'Created NEW Native Public Policy: %', v_public_policy_id;
+    ELSE
+        RAISE NOTICE 'Found existing Public Policy: %', v_public_policy_id;
+    END IF;
 
-        -- Cleanup existing to avoid duplicates
-        DELETE FROM directus_permissions WHERE policy = p.id AND collection = ANY(read_collections) AND action = 'read';
-        DELETE FROM directus_permissions WHERE policy = p.id AND collection = ANY(create_collections) AND action = 'create';
+    -- 3. DETECT PERMISSION TABLE SCHEMA (Smart ID Prevention)
+    SELECT data_type INTO v_id_type 
+    FROM information_schema.columns 
+    WHERE table_name = 'directus_permissions' AND column_name = 'id';
 
-        -- Grant READ
+    RAISE NOTICE 'Detected directus_permissions.id type: %', v_id_type;
+
+    -- 4. CLEANUP AND GRANT
+    DELETE FROM directus_permissions WHERE policy = v_public_policy_id AND collection = ANY(read_collections) AND action = 'read';
+    DELETE FROM directus_permissions WHERE policy = v_public_policy_id AND collection = ANY(create_collections) AND action = 'create';
+
+    IF v_id_type = 'integer' THEN
+        -- Insertion for Serial/Integer IDs
+        FOREACH coll IN ARRAY read_collections LOOP
+            INSERT INTO directus_permissions (policy, collection, action, permissions, validation, fields)
+            VALUES (v_public_policy_id, coll, 'read', '{}', '{}', ARRAY['*']);
+        END LOOP;
+        FOREACH coll IN ARRAY create_collections LOOP
+            INSERT INTO directus_permissions (policy, collection, action, permissions, validation, fields)
+            VALUES (v_public_policy_id, coll, 'create', '{}', '{}', ARRAY['*']);
+        END LOOP;
+    ELSE
+        -- Insertion for UUID IDs
         FOREACH coll IN ARRAY read_collections LOOP
             INSERT INTO directus_permissions (id, policy, collection, action, permissions, validation, fields)
-            VALUES (gen_random_uuid(), p.id, coll, 'read', '{}', '{}', ARRAY['*']);
+            VALUES (gen_random_uuid(), v_public_policy_id, coll, 'read', '{}', '{}', ARRAY['*']);
         END LOOP;
-        
-        -- Grant CREATE
         FOREACH coll IN ARRAY create_collections LOOP
             INSERT INTO directus_permissions (id, policy, collection, action, permissions, validation, fields)
-            VALUES (gen_random_uuid(), p.id, coll, 'create', '{}', '{}', ARRAY['*']);
+            VALUES (gen_random_uuid(), v_public_policy_id, coll, 'create', '{}', '{}', ARRAY['*']);
         END LOOP;
+    END IF;
 
-        applied_count := applied_count + 1;
-    END LOOP;
-
-    -- 4. ENSURE ALL ITEMS ARE ACTIVE
+    -- 5. ENSURE VISIBILITY
     UPDATE vendors SET status = 'active' WHERE status IS NULL OR status != 'active';
     UPDATE categories SET status = 'active' WHERE status IS NULL OR status != 'active';
     
-    RAISE NOTICE 'SUCCESS: Original permissions reconstructed across % policies.', applied_count;
+    RAISE NOTICE 'SUCCESS: Native Directus 11 permissions restored.';
 END $$;
 
 -- Locations Seeding
