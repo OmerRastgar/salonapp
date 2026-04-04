@@ -86,39 +86,61 @@ INSERT INTO employee_services (id, employee_id, name, price, duration_minutes, i
 INSERT INTO employee_schedules (id, employee_id, day_of_week, start_time, end_time, is_closed)
 SELECT gen_random_uuid(), e.id, d, '09:00:00', '21:00:00', false FROM employees e cross join generate_series(0, 6) d;
 
--- 6. PERMISSIONS (UNIVERSAL BLANKET GRANT)
+-- 6. PERMISSIONS (ORIGINAL UUID RECONSTRUCTION)
 DO $$ 
 DECLARE
-    -- Collections that must be PUBLICLY READABLE
+    -- The Collections that WORKED previously
     read_collections text[] := ARRAY[
         'vendors', 'categories', 'employees', 'locations', 'reviews', 
         'working_hours', 'directus_files', 'directus_folders', 
         'vendor_categories', 'employee_services', 'employee_schedules', 'bookings'
     ];
-    -- Collections that must be PUBLICLY CREATABLE (for submissions)
+    -- Interactions that must be publicly available
     create_collections text[] := ARRAY['reviews', 'employee_reviews', 'bookings', 'contacts'];
+    
+    -- ORIGINAL UUIDs from previous working files
+    ORIGINAL_PUBLIC_ROLE_ID uuid := '192df901-9d32-45ec-9b4e-60faf5feac5c';
+    ORIGINAL_PUBLIC_POLICY_ID uuid := 'abf8a154-5b1c-4a46-ac9c-7300570f4f17';
     
     p record;
     coll text;
     applied_count int := 0;
 BEGIN
-    -- 1. IDENTIFY ALL NON-ADMIN POLICIES
-    -- We loop through every policy that doesn't have system-level admin access
+    -- 1. ENSURE ORIGINAL POLICY EXISTS
+    INSERT INTO directus_policies (id, name, icon, description, ip_access, enforce_tfa, admin_access, app_access)
+    VALUES (ORIGINAL_PUBLIC_POLICY_ID, 'Public Access', 'public', 'Original marketplace access policy', NULL, false, false, false)
+    ON CONFLICT (id) DO NOTHING;
+
+    -- 2. ENSURE ORIGINAL PUBLIC ROLE EXISTS & LINKED
+    -- If the role is missing, we create it; if it exists, we link it to the policy.
+    INSERT INTO directus_roles (id, name, icon, description)
+    VALUES (ORIGINAL_PUBLIC_ROLE_ID, 'Public', 'public', 'Original public role')
+    ON CONFLICT (id) DO NOTHING;
+
+    -- Force linkage in directus_access
+    DELETE FROM directus_access WHERE role = ORIGINAL_PUBLIC_ROLE_ID OR (role IS NULL AND "user" IS NULL);
+    
+    INSERT INTO directus_access (id, policy, role)
+    VALUES (gen_random_uuid(), ORIGINAL_PUBLIC_POLICY_ID, ORIGINAL_PUBLIC_ROLE_ID),
+           (gen_random_uuid(), ORIGINAL_PUBLIC_POLICY_ID, NULL);
+
+    -- 3. APPLY BLANKET GRANT TO THE ORIGINAL POLICY AND ALL OTHER NON-ADMIN POLICIES
+    -- This ensures total coverage across any policy Directus might be using.
     FOR p IN SELECT id, name FROM directus_policies WHERE admin_access = false LOOP
         
-        RAISE NOTICE 'Applying Marketplace Permissions to Policy: % (%)', p.name, p.id;
+        RAISE NOTICE 'Restoring Permissions to Policy: % (%)', p.name, p.id;
 
-        -- 2. CLEANUP existing permissions for THIS policy to avoid duplicates
+        -- Cleanup existing to avoid duplicates
         DELETE FROM directus_permissions WHERE policy = p.id AND collection = ANY(read_collections) AND action = 'read';
         DELETE FROM directus_permissions WHERE policy = p.id AND collection = ANY(create_collections) AND action = 'create';
 
-        -- 3. GRANT READ ACCESS
+        -- Grant READ
         FOREACH coll IN ARRAY read_collections LOOP
             INSERT INTO directus_permissions (id, policy, collection, action, permissions, validation, fields)
             VALUES (gen_random_uuid(), p.id, coll, 'read', '{}', '{}', ARRAY['*']);
         END LOOP;
         
-        -- 4. GRANT CREATE ACCESS
+        -- Grant CREATE
         FOREACH coll IN ARRAY create_collections LOOP
             INSERT INTO directus_permissions (id, policy, collection, action, permissions, validation, fields)
             VALUES (gen_random_uuid(), p.id, coll, 'create', '{}', '{}', ARRAY['*']);
@@ -127,11 +149,11 @@ BEGIN
         applied_count := applied_count + 1;
     END LOOP;
 
-    -- 5. ENSURE ACTIVE STATUS: Force all items to be visible
+    -- 4. ENSURE ALL ITEMS ARE ACTIVE
     UPDATE vendors SET status = 'active' WHERE status IS NULL OR status != 'active';
     UPDATE categories SET status = 'active' WHERE status IS NULL OR status != 'active';
     
-    RAISE NOTICE 'SUCCESS: Marketplace permissions applied to % policies.', applied_count;
+    RAISE NOTICE 'SUCCESS: Original permissions reconstructed across % policies.', applied_count;
 END $$;
 
 -- Locations Seeding
