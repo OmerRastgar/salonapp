@@ -96,6 +96,7 @@ DECLARE
     
     coll text;
     p record;
+    public_policy_id uuid;
 BEGIN
     -- 1. IDENTIFY THE PUBLIC POLICY (Critical for Directus 11)
     SELECT id INTO public_policy_id FROM directus_policies WHERE (name = 'Public' OR name = 'Public Access') LIMIT 1;
