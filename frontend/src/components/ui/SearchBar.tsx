@@ -89,47 +89,47 @@ export default function SearchBar({ initialTreatment = '', initialLocation = '',
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, delay: 0.3 }}
-        className="bg-white/90 backdrop-blur-xl rounded-full shadow-xl border border-white/50 p-2 flex flex-col md:flex-row items-stretch md:items-center"
+        className="bg-white/95 backdrop-blur-xl rounded-[32px] md:rounded-full shadow-2xl border border-white/50 p-2 flex flex-col md:flex-row items-stretch md:items-center"
       >
         {/* Treatment */}
         <div
-          className="flex-1 flex items-center gap-3 px-4 py-3 md:py-2 border-b md:border-b-0 md:border-r border-border/30 cursor-pointer rounded-full md:rounded-none hover:bg-black/5 transition-colors"
+          className="flex-1 flex items-center gap-3 px-6 py-4 md:py-2 border-b md:border-b-0 md:border-r border-border/20 cursor-pointer hover:bg-black/5 transition-colors group"
           onClick={() => setActiveDropdown(activeDropdown === 'treatment' ? null : 'treatment')}
         >
-          <Search className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+          <Search className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />
           <input
             type="text"
             placeholder="All treatments"
             value={treatmentQuery}
             onChange={e => { setTreatmentQuery(e.target.value); setActiveDropdown('treatment'); }}
             onFocus={() => setActiveDropdown('treatment')}
-            className="w-full bg-transparent text-foreground placeholder:text-muted-foreground text-sm font-medium focus:outline-none cursor-pointer"
+            className="w-full bg-transparent text-foreground placeholder:text-muted-foreground text-sm font-bold focus:outline-none cursor-pointer"
           />
         </div>
 
         {/* Location */}
         <div
-          className="flex-1 flex items-center gap-3 px-4 py-3 md:py-2 border-b md:border-b-0 md:border-r border-border/30 cursor-pointer rounded-full md:rounded-none hover:bg-black/5 transition-colors"
+          className="flex-1 flex items-center gap-3 px-6 py-4 md:py-2 border-b md:border-b-0 md:border-r border-border/20 cursor-pointer hover:bg-black/5 transition-colors group"
           onClick={() => setActiveDropdown(activeDropdown === 'location' ? null : 'location')}
         >
-          <MapPin className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+          <MapPin className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />
           <input
             type="text"
             placeholder="Current location"
             value={locationQuery}
             onChange={e => { setLocationQuery(e.target.value); setActiveDropdown('location'); }}
             onFocus={() => setActiveDropdown('location')}
-            className="w-full bg-transparent text-foreground placeholder:text-muted-foreground text-sm font-medium focus:outline-none cursor-pointer"
+            className="w-full bg-transparent text-foreground placeholder:text-muted-foreground text-sm font-bold focus:outline-none cursor-pointer"
           />
         </div>
 
         {/* Date/Time */}
-        <div
-          className="flex-1 flex items-center gap-3 px-4 py-3 md:py-2 cursor-pointer rounded-full md:rounded-none hover:bg-black/5 transition-colors"
+        <div 
+          className="flex-1 flex items-center gap-3 px-6 py-4 md:py-2 cursor-pointer hover:bg-black/5 transition-colors group"
           onClick={() => setActiveDropdown(activeDropdown === 'datetime' ? null : 'datetime')}
         >
-          <Calendar className="w-5 h-5 text-muted-foreground flex-shrink-0" />
-          <span className={`text-sm font-medium ${selectedDate ? 'text-foreground' : 'text-muted-foreground'}`}>
+          <Calendar className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />
+          <span className={`text-sm font-bold ${selectedDate ? 'text-foreground' : 'text-muted-foreground'}`}>
             {dateLabel}
           </span>
         </div>
@@ -137,7 +137,7 @@ export default function SearchBar({ initialTreatment = '', initialLocation = '',
         {/* Search Button */}
         <Button 
             onClick={handleSearchClick}
-            className="mt-2 md:mt-0 md:ml-2 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-6 text-sm font-semibold transition-all duration-200 hover:scale-105 flex-shrink-0"
+            className="mt-2 md:mt-0 md:ml-2 rounded-2xl md:rounded-full bg-primary hover:bg-primary/90 text-primary-foreground px-10 py-7 md:py-6 text-sm font-black tracking-widest uppercase transition-all duration-200 hover:scale-[1.02] active:scale-95 flex-shrink-0 shadow-lg shadow-primary/20"
         >
           Search
         </Button>

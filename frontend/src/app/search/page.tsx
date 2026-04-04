@@ -22,7 +22,7 @@ function SearchContent() {
   
   const [category, setCategory] = useState(initialCategory);
   const [location, setLocation] = useState(initialLocation);
-  const [showMap, setShowMap] = useState(true); // Default to show map on desktop
+  const [showMap, setShowMap] = useState(false); // Default to HIDDEN on mobile for better UX
   const [isLocating, setIsLocating] = useState(false);
   const [categories, setCategories] = useState<{ id: string; name: string; slug: string }[]>([]);
 
@@ -47,7 +47,7 @@ function SearchContent() {
       {/* Header / Sub-Toolbar */}
       <header className="flex-shrink-0 border-b border-border/40 bg-white/80 backdrop-blur-md z-[110]">
         <div className="max-w-[1440px] mx-auto px-4 md:px-6 py-3 flex flex-col md:flex-row items-center gap-4">
-           <div className="flex items-center gap-3 w-full md:w-auto">
+           <div className="hidden md:flex items-center gap-3 w-full md:w-auto">
               <SiteBreadcrumbs items={[{ label: "Home", href: "/" }, { label: "Search" }]} />
            </div>
            
@@ -86,7 +86,7 @@ function SearchContent() {
         
         {/* Left Column: Results */}
         <div className={`flex-1 flex flex-col min-h-0 overflow-hidden transition-all duration-500 ease-in-out ${showMap ? 'lg:w-[50%] xl:w-[45%]' : 'w-full'}`}>
-           <div className="flex-1 min-h-0 overflow-y-auto px-4 md:px-6 py-8 custom-scrollbar">
+           <div className="flex-1 min-h-0 overflow-y-auto px-4 md:px-6 py-4 md:py-8 custom-scrollbar">
               <div className="max-w-4xl mx-auto min-h-full">
                  <div className="mb-8">
                     <h1 className="text-3xl font-black tracking-tight text-foreground">

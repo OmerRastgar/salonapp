@@ -47,7 +47,7 @@ export default function Home() {
     <div className="h-full bg-background overflow-y-auto custom-scrollbar">
       {/* Signature Animated 'Pink Blob' Background - More Vibrant & Morphing */}
       <motion.div
-        className="absolute top-[-20%] right-[-10%] w-[1000px] h-[1000px] bg-gradient-to-br from-pink-500/30 via-purple-500/20 to-transparent rounded-full blur-[140px] pointer-events-none z-0"
+        className="absolute top-[-10%] right-[-10%] w-[400px] md:w-[1000px] h-[400px] md:h-[1000px] bg-gradient-to-br from-pink-500/30 via-purple-500/20 to-transparent rounded-full blur-[80px] md:blur-[140px] pointer-events-none z-0"
         animate={{ 
           scale: [1, 1.1, 0.95, 1.05, 1],
           rotate: [0, 90, 180, 270, 360],
@@ -56,7 +56,7 @@ export default function Home() {
         transition={{ duration: 25, repeat: Infinity, ease: 'linear' }}
       />
       <motion.div
-        className="absolute bottom-[-20%] left-[-10%] w-[800px] h-[800px] bg-gradient-to-tr from-purple-600/25 via-pink-400/20 to-transparent rounded-full blur-[120px] pointer-events-none z-0"
+        className="absolute bottom-[-10%] left-[-10%] w-[350px] md:w-[800px] h-[350px] md:h-[800px] bg-gradient-to-tr from-purple-600/25 via-pink-400/20 to-transparent rounded-full blur-[70px] md:blur-[120px] pointer-events-none z-0"
         animate={{ 
           scale: [1, 1.15, 0.9, 1.1, 1],
           rotate: [360, 270, 180, 90, 0],
@@ -74,11 +74,11 @@ export default function Home() {
       />
 
       {/* Hero Section */}
-      <div className="relative z-40 mx-auto max-w-4xl px-4 py-16 text-center sm:py-24">
-        <h1 className="mb-6 text-5xl font-bold leading-tight tracking-tight sm:text-6xl">
+      <div className="relative z-40 mx-auto max-w-4xl px-4 py-12 md:py-16 text-center sm:py-24">
+        <h1 className="mb-6 text-4xl font-black leading-tight tracking-tighter sm:text-6xl md:text-7xl text-foreground">
           Book local
           <br />
-          <span className="text-purple-600">selfcare services</span>
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-500">selfcare services</span>
         </h1>
         <p className="mb-12 text-lg text-muted-foreground max-w-2xl mx-auto">
           Discover top-rated salons, barbers, and beauty experts trusted by millions worldwide.
@@ -107,10 +107,10 @@ export default function Home() {
             <span className="text-[10px] font-bold text-green-600 uppercase tracking-[0.2em]">Live Activity</span>
           </div>
           <div className="flex flex-col items-center">
-            <span className="text-5xl font-bold tracking-tighter tabular-nums text-foreground">
+            <span className="text-4xl md:text-6xl font-black tracking-tighter tabular-nums text-foreground">
               {appointmentsCount.toLocaleString()}
             </span>
-            <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mt-1">
+            <span className="text-[10px] md:text-xs font-bold uppercase tracking-[0.3em] text-muted-foreground mt-2">
               Appointments Booked Today
             </span>
           </div>

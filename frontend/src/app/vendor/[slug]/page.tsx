@@ -120,13 +120,13 @@ export default function VendorPage() {
   return (
     <div className="h-full bg-background overflow-y-auto custom-scrollbar overflow-x-hidden">
       {/* Search Header / Breadcrumbs */}
-      <div className="bg-white/50 backdrop-blur-sm border-b border-border/30">
-        <div className="max-w-7xl mx-auto px-4 md:px-8 py-4">
+      <div className="hidden md:block bg-white/50 backdrop-blur-sm border-b border-border/30">
+        <div className="max-w-7xl mx-auto px-8 py-4">
           <SiteBreadcrumbs items={breadcrumbs} />
         </div>
       </div>
 
-      <div className="max-w-[1440px] mx-auto px-4 md:px-8 py-8">
+      <div className="max-w-[1440px] mx-auto px-4 md:px-8 py-4 md:py-8">
         {/* Hero & Identity */}
         <VenueHero venue={vendor} onShare={handleShare} />
         
@@ -140,9 +140,9 @@ export default function VendorPage() {
         />
 
         {/* Main Content + Sidebar Split */}
-        <div className="mt-12 flex flex-col lg:flex-row gap-12 items-start relative">
+        <div className="mt-8 md:mt-12 flex flex-col lg:flex-row gap-8 lg:gap-12 items-start relative">
           {/* Left Side: Services, About, Team, Map, Reviews */}
-          <div className="flex-1 min-w-0 space-y-20">
+          <div className="flex-1 min-w-0 space-y-12 md:space-y-20">
             <div id="services-section">
                 <VenueServices 
                     categories={serviceCategories} 
@@ -182,9 +182,9 @@ export default function VendorPage() {
       </div>
 
       {/* Mobile Sticky CTA */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-border/40 p-4 pb-8 flex justify-center">
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-border/40 p-4 pb-10 flex justify-center shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)]">
          <button 
-            className="w-full max-w-sm py-4 bg-primary text-primary-foreground rounded-full font-bold text-lg shadow-2xl shadow-primary/30 hover:scale-[1.02] transition-all"
+            className="w-full max-w-sm py-4 bg-primary text-primary-foreground rounded-full font-black text-lg shadow-2xl shadow-primary/30 active:scale-95 transition-all"
             onClick={() => {
                 const el = document.getElementById('services-section');
                 if (el) el.scrollIntoView({ behavior: 'smooth' });
