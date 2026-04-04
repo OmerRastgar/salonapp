@@ -89,9 +89,7 @@ BEGIN
         FOREACH coll IN ARRAY target_collections LOOP
             -- Standard Directus 11 array field format
             INSERT INTO directus_permissions (policy, collection, action, permissions, validation, fields)
-            VALUES (p.id, coll, 'read', '{}', '{}', ARRAY['*'])
-            ON CONFLICT (policy, collection, action) 
-            DO UPDATE SET fields = ARRAY['*'], permissions = '{}', validation = '{}';
+            VALUES (p.id, coll, 'read', '{}', '{}', ARRAY['*']);
         END LOOP;
     END LOOP;
     
