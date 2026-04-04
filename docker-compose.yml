@@ -46,8 +46,13 @@ services:
       - PUBLIC_URL=${PUBLIC_URL}
       - CORS_ENABLED=true
       - CORS_ORIGIN=true
+      - STORAGE_LOCATIONS=local
+      - STORAGE_LOCAL_DRIVER=local
+      - STORAGE_LOCAL_ROOT=/directus/uploads
     ports:
       - "8055:8055"
+    volumes:
+      - ./data/uploads:/directus/uploads
     depends_on:
       - database
     networks:

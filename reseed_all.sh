@@ -62,48 +62,21 @@ else
     exit 1
 fi
 
-# 6. Step 2: Binary Asset Upload (via Disposable Node Container)
-# This is much safer than running inside the production standalone container
-echo -e "${BLUE}>>> Step 2: Running Asset Uploader (via Disposable Container)...${NC}"
+# 6. Step 2: Binary Asset Sync (FAST DIRECT COPY)
+# Instead of slow API uploads, we copy directly to the mapped volume
+echo -e "${BLUE}>>> Step 2: Syncing binary assets to storage volume...${NC}"
 
-# We use the official node image, mount the local volume, and run the script
-# We set the network to match the compose network so it can find 'directus'
-NETWORK_NAME=$(docker network ls --filter "name=marketplace-network" -q | head -n 1)
-if [ -z "$NETWORK_NAME" ]; then
-  # Fallback to default network if not found
-  NETWORK_NAME=$(docker network ls --filter "name=default" -q | head -n 1)
-fi
-
-docker run --rm \
-  --network "$NETWORK_NAME" \
-  -v "$(pwd):/project" \
-  -w /project/frontend \
-  -e DIRECTUS_INTERNAL_URL="http://directus:8055" \
-  -e DIRECTUS_TOKEN=$(grep 'DIRECTUS_TOKEN' .env | cut -d '=' -f2) \
-  -e IMAGES_DIR="/project/Images" \
-  node:20-alpine \
-  sh -c "npm install axios form-data dotenv --legacy-peer-deps && npx tsx scripts/reseed_assets.ts" > asset_updates.tmp 2>asset_errors.log
+# Clear current uploads and copy fresh ones from Images/
+# We use -u to only update newer files, or just copy all
+cp -v Images/* data/uploads/
 
 if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✔ Assets uploaded successfully.${NC}"
+    echo -e "${GREEN}✔ Assets sync successfully.${NC}"
 else
-    echo -e "${RED}✘ Failed to upload assets. Check asset_errors.log for details.${NC}"
+    echo -e "${RED}✘ Failed to sync assets.${NC}"
     exit 1
 fi
 
-# 7. Step 3: Dynamic Image Linkage
-echo -e "${BLUE}>>> Step 3: Synchronizing image IDs...${NC}"
-grep "UPDATE" asset_updates.tmp | docker exec -i $DB_CONTAINER psql -U $DB_USER -d $DB_NAME
-if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✔ Image links synchronized.${NC}"
-else
-    echo -e "${RED}✘ Failed to synchronize image links.${NC}"
-    exit 1
-fi
-
+# 7. SUCCESS
 echo -e "${GREEN}>>> SUCCESS! Data and Binary Assets have been restored.${NC}"
-echo -e "${BLUE}>>> Placeholder IDs for your Gallery check:${NC}"
-grep "Placeholder" asset_updates.tmp || echo "No extra placeholders found."
-
-# Final host cleanup
-rm asset_updates.tmp
+echo -e "${BLUE}>>> IMPORTANT: Run 'docker compose restart directus' to refresh the cache.${NC}"
