@@ -27,7 +27,13 @@ INSERT INTO directus_files (id, storage, filename_disk, filename_download, title
 ('e1111111-1234-4321-8888-111111111111', 'local', 'barber-1.png', 'barber-1.png', 'Barber Profile 1', 'image/png', 767690),
 ('e2222222-1234-4321-8888-222222222222', 'local', 'stylist-1.png', 'stylist-1.png', 'Stylist Profile 1', 'image/png', 736350),
 ('e3333333-1234-4321-8888-333333333333', 'local', 'therapist-1.png', 'therapist-1.png', 'Therapist Profile 1', 'image/png', 700154),
-('e4444444-1234-4321-8888-444444444444', 'local', 'aesthetician-1.png', 'aesthetician-1.png', 'Nail Artist Profile 1', 'image/png', 645709)
+('e4444444-1234-4321-8888-444444444444', 'local', 'aesthetician-1.png', 'aesthetician-1.png', 'Nail Artist Profile 1', 'image/png', 645709),
+-- GALLERY PLACEHOLDERS (Hardcoded in frontend VenueGallery.tsx)
+('bf1e5cc1-dcfd-4867-b6dc-337192b3427c', 'local', 'glamour-salon-interior.jpg', 'glamour-salon-interior.jpg', 'Glamour Interior', 'image/jpeg', 2036362),
+('060814e7-a997-4c9a-8b4f-6cac367003c5', 'local', 'modern-barber-shop.jpg', 'modern-barber-shop.jpg', 'Modern Barber Shop', 'image/jpeg', 2242382),
+('48bbad28-4fca-47f5-9e6d-fd84be1f31a4', 'local', 'royal-beauty-lounge.jpg', 'royal-beauty-lounge.jpg', 'Royal Beauty Lounge', 'image/jpeg', 2890179),
+('90238b8c-5931-4c60-9a52-a6f7e4399adb', 'local', 'glamour-salon-spa.jpg', 'glamour-salon-spa.jpg', 'Glamour Spa Interior', 'image/jpeg', 2036362),
+('bd750759-f528-4961-8a50-370df6913738', 'local', 'luxury-beauty-studio.jpg', 'luxury-beauty-studio.jpg', 'Luxe Hair Interior', 'image/jpeg', 2890179)
 ON CONFLICT (id) DO UPDATE SET filename_disk = EXCLUDED.filename_disk, filesize = EXCLUDED.filesize;
 
 INSERT INTO categories (id, name, slug, image, status) VALUES
@@ -45,10 +51,10 @@ ON CONFLICT (id) DO NOTHING;
 
 -- 3. VENDORS (STRICT COORDINATES + RICH DATA)
 INSERT INTO vendors (id, name, slug, description, cover_image, city, area, address, latitude, longitude, is_featured, is_verified, status, rating, reviews_count) VALUES
-('fb000000-0000-4000-0001-000000000001', 'Capital Barber Studio', 'barber-studio', 'Capital Barber Studio is Lahore’s premier destination for traditional grooming with a modern edge. Our master barbers specialize in signature fades and professional beard grooming. We pride ourselves on creating a social sanctuary where style meets relaxation for the modern gentleman.', '69cc18eb-4ea2-6028-ed15-6713bb10d0cb', 'Lahore', 'Johar Town', 'Block H-3, Johar Town', 31.4697, 74.2728, true, true, 'active', 4.9, 120),
-('fb000000-0000-4000-0002-000000000002', 'Luxe Hair & Style', 'luxe-hair', 'Luxe Hair & Style sets the standard for high-fashion salon experiences in Islamabad. Using only the finest international products, our boutique salon offers hair coloring, transformative cutting techniques, and luxury styling. Our team of stylists is dedicated to perfecting your unique look.', '79b2b8d5-9a06-bd20-2a06-bd202a06bd20', 'Islamabad', 'F-7', 'F-7 Markaz', 33.7200, 73.0600, true, true, 'active', 5.0, 85),
-('fb000000-0000-4000-0003-000000000003', 'Serene Wellness Spa', 'serene-spa', 'Escape the city at Serene Wellness Spa, Karachi’s ultimate zen sanctuary. Our spa offers a comprehensive range of traditional and modern wellness therapies, from deep-tissue Swedish massages to revitalizing facials. Experience true serenity in an atmosphere designed to rejuvenate the body and mind.', '36c1442c-1762-7790-336c-1442c1762779', 'Karachi', 'DHA', 'Phase 6, DHA', 24.8100, 67.0500, true, true, 'active', 4.8, 200),
-('fb000000-0000-4000-0004-000000000004', 'Oasis Nail Bar', 'oasis-nails', 'Oasis Nail Bar brings luxury nail artistry to the heart of Clifton. From professional manicures to custom-painted nail art, our technicians provide a pampering experience that focuses on health and beauty. We use non-toxic, premium lacquers to ensure a flawless finish every time.', '4d3cd477-c091-5dd4-c091-5dd4c0915dd4', 'Karachi', 'Clifton', 'Block 5, Clifton', 24.8138, 67.0267, true, true, 'active', 4.9, 45)
+('fb000000-0000-4000-0001-000000000001', 'Capital Barber Studio', 'barber-studio', 'Capital Barber Studio is Lahore’s premier destination for traditional grooming and precision **Hair Cut** services with a modern edge. Our master barbers specialize in signature fades, professional beard grooming, and classic shaves. We pride ourselves on creating a social sanctuary where style meets relaxation for the modern gentleman.', '69cc18eb-4ea2-6028-ed15-6713bb10d0cb', 'Lahore', 'Johar Town', 'Block H-3, Johar Town', 31.4697, 74.2728, true, true, 'active', 4.9, 120),
+('fb000000-0000-4000-0002-000000000002', 'Luxe Hair & Style', 'luxe-hair', 'Luxe Hair & Style sets the standard for high-fashion salon experiences in Islamabad. Using only the finest international products, our boutique salon offers expert **Hair Cut**, **Hair Coloring**, transformative cutting techniques, and luxury styling. Our team of stylists is dedicated to perfecting your unique look.', '79b2b8d5-9a06-bd20-2a06-bd202a06bd20', 'Islamabad', 'F-7', 'F-7 Markaz', 33.7200, 73.0600, true, true, 'active', 5.0, 85),
+('fb000000-0000-4000-0003-000000000003', 'Serene Wellness Spa', 'serene-spa', 'Escape the city at Serene Wellness Spa, Karachi’s ultimate zen sanctuary. Our spa offers a comprehensive range of traditional and modern wellness therapies, from professional **Massage**, deep-tissue Swedish treatments to revitalizing **Facial** care. Experience true serenity in an atmosphere designed to rejuvenate the body and mind.', '36c1442c-1762-7790-336c-1442c1762779', 'Karachi', 'DHA', 'Phase 6, DHA', 24.8100, 67.0500, true, true, 'active', 4.8, 200),
+('fb000000-0000-4000-0004-000000000004', 'Oasis Nail Bar', 'oasis-nails', 'Oasis Nail Bar brings luxury nail artistry to the heart of Clifton. From professional **Manicure** to custom-painted nail art and **Pedicure**, our technicians provide a pampering experience that focuses on health and beauty. We use non-toxic, premium lacquers to ensure a flawless finish every time.', '4d3cd477-c091-5dd4-c091-5dd4c0915dd4', 'Karachi', 'Clifton', 'Block 5, Clifton', 24.8138, 67.0267, true, true, 'active', 4.9, 45)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO vendor_categories (vendors_id, categories_id) VALUES
@@ -80,23 +86,34 @@ INSERT INTO employee_services (id, employee_id, name, price, duration_minutes, i
 INSERT INTO employee_schedules (id, employee_id, day_of_week, start_time, end_time, is_closed)
 SELECT gen_random_uuid(), e.id, d, '09:00:00', '21:00:00', false FROM employees e cross join generate_series(0, 6) d;
 
--- 6. PERMISSIONS (PUBLIC READ)
+-- 6. PERMISSIONS (PUBLIC READ & CREATE)
 DO $$ 
 DECLARE
-    target_collections text[] := ARRAY['vendors', 'categories', 'employees', 'locations', 'reviews', 'working_hours', 'directus_files', 'directus_folders', 'vendor_categories', 'employee_services', 'employee_schedules'];
+    -- Public READ collections
+    read_collections text[] := ARRAY['vendors', 'categories', 'employees', 'locations', 'reviews', 'working_hours', 'directus_files', 'directus_folders', 'vendor_categories', 'employee_services', 'employee_schedules', 'bookings'];
+    -- Public CREATE collections (Submissions)
+    create_collections text[] := ARRAY['reviews', 'employee_reviews', 'bookings', 'contacts'];
+    
     coll text;
     p record;
 BEGIN
-    -- 1. CLEANUP ALL MARKETPLACE READ PERMISSIONS (Avoid duplicates or restricted rules)
-    DELETE FROM directus_permissions WHERE collection = ANY(target_collections) AND action = 'read';
+    -- 1. CLEANUP ALL RELEVANT PERMISSIONS
+    DELETE FROM directus_permissions WHERE collection = ANY(read_collections) AND action = 'read';
+    DELETE FROM directus_permissions WHERE collection = ANY(create_collections) AND action = 'create';
+    DELETE FROM directus_permissions WHERE collection = 'directus_files' AND action = 'read';
 
     -- 2. "GLOBAL REVEAL" (Apply to every policy found in the system, ensuring Public is covered)
     FOR p IN SELECT id FROM directus_policies LOOP
-        FOREACH coll IN ARRAY target_collections LOOP
-            -- Standard Directus 11 array field format
-            -- We give '*' to all collections to ensure full visibility
+        -- Grant READ
+        FOREACH coll IN ARRAY read_collections LOOP
             INSERT INTO directus_permissions (policy, collection, action, permissions, validation, fields)
             VALUES (p.id, coll, 'read', '{}', '{}', ARRAY['*']);
+        END LOOP;
+        
+        -- Grant CREATE (For reviews and bookings)
+        FOREACH coll IN ARRAY create_collections LOOP
+            INSERT INTO directus_permissions (policy, collection, action, permissions, validation, fields)
+            VALUES (p.id, coll, 'create', '{}', '{}', ARRAY['*']);
         END LOOP;
     END LOOP;
     
