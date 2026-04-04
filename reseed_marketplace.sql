@@ -86,92 +86,81 @@ INSERT INTO employee_services (id, employee_id, name, price, duration_minutes, i
 INSERT INTO employee_schedules (id, employee_id, day_of_week, start_time, end_time, is_closed)
 SELECT gen_random_uuid(), e.id, d, '09:00:00', '21:00:00', false FROM employees e cross join generate_series(0, 6) d;
 
--- 6. PERMISSIONS (NATIVE DIRECTUS 11 MODERNIZATION)
+-- 6. PERMISSIONS (ABSOLUTE TRANSPRANCY NATIVE DIRECTUS 11)
 DO $$ 
 DECLARE
-    -- The Collections that form the core of the Marketplace + INTERNAL METADATA (Nuclear)
+    -- The Collections that form the core of the Marketplace + CORE SYSTEM (Absolute)
     read_collections text[] := ARRAY[
         'vendors', 'categories', 'employees', 'locations', 'reviews', 
         'working_hours', 'directus_files', 'directus_folders', 
         'vendor_categories', 'employee_services', 'employee_schedules', 'bookings',
-        'directus_fields', 'directus_relations', 'directus_presets', 'directus_shares', 'directus_roles'
+        'directus_collections', 'directus_fields', 'directus_relations', 'directus_presets', 'directus_shares', 'directus_roles', 'directus_activity'
     ];
     -- Interactions permitted for public visitors
     create_collections text[] := ARRAY['reviews', 'employee_reviews', 'bookings', 'contacts'];
     
-    v_public_role_id uuid;
-    v_public_policy_id uuid;
+    p record;
     v_id_type text;
     coll text;
+    applied_count int := 0;
 BEGIN
-    -- 1. DYNAMIC IDENTITY LOOKUP
-    -- Identify the standard Directus 11 Public Role
-    SELECT id INTO v_public_role_id FROM directus_roles WHERE name ILIKE 'Public' LIMIT 1;
-    
-    IF v_public_role_id IS NULL THEN
-        RAISE WARNING 'Standard Public role not found. Attempting to locate policy by anonymous access...';
-        SELECT policy INTO v_public_policy_id FROM directus_access WHERE role IS NULL AND "user" IS NULL LIMIT 1;
-    ELSE
-        RAISE NOTICE 'Found Public Role: %', v_public_role_id;
-        SELECT policy INTO v_public_policy_id FROM directus_access WHERE role = v_public_role_id LIMIT 1;
-    END IF;
-
-    -- 2. FAIL-SAFE POLICY ENSURANCE
-    IF v_public_policy_id IS NULL THEN
-        v_public_policy_id := gen_random_uuid();
-        INSERT INTO directus_policies (id, name, description, admin_access, app_access)
-        VALUES (v_public_policy_id, 'Marketplace Public Access', 'Native Directus 11 policy for public marketplace reading', false, false);
-        
-        -- Link it to the Public Role and Anonymous Access
-        IF v_public_role_id IS NOT NULL THEN
-            INSERT INTO directus_access (id, policy, role) VALUES (gen_random_uuid(), v_public_policy_id, v_public_role_id);
-        END IF;
-        INSERT INTO directus_access (id, policy, role) VALUES (gen_random_uuid(), v_public_policy_id, NULL);
-        
-        RAISE NOTICE 'Created NEW Native Public Policy: %', v_public_policy_id;
-    ELSE
-        RAISE NOTICE 'Found existing Public Policy: %', v_public_policy_id;
-    END IF;
-
-    -- 3. DETECT PERMISSION TABLE SCHEMA (Smart ID Prevention)
+    -- 1. DETECT PERMISSION TABLE SCHEMA (Smart ID Prevention)
     SELECT data_type INTO v_id_type 
     FROM information_schema.columns 
     WHERE table_name = 'directus_permissions' AND column_name = 'id';
 
     RAISE NOTICE 'Detected directus_permissions.id type: %', v_id_type;
 
-    -- 4. CLEANUP AND NUCLEAR GRANT
-    DELETE FROM directus_permissions WHERE policy = v_public_policy_id AND collection = ANY(read_collections) AND action = 'read';
-    DELETE FROM directus_permissions WHERE policy = v_public_policy_id AND collection = ANY(create_collections) AND action = 'create';
+    -- 2. ITERATE EVERY NON-ADMIN POLICY (Universal Repair)
+    -- We grant to EVERY policy that isn't for Administrators to ensure Total Coverage
+    FOR p IN SELECT id, name FROM directus_policies WHERE admin_access = false LOOP
+        
+        RAISE NOTICE 'Repairing Policy: % (%)', p.name, p.id;
 
-    IF v_id_type = 'integer' THEN
-        -- Insertion for Serial/Integer IDs
-        FOREACH coll IN ARRAY read_collections LOOP
-            INSERT INTO directus_permissions (policy, collection, action, permissions, validation, fields)
-            VALUES (v_public_policy_id, coll, 'read', '{}', '{}', ARRAY['*']);
-        END LOOP;
-        FOREACH coll IN ARRAY create_collections LOOP
-            INSERT INTO directus_permissions (policy, collection, action, permissions, validation, fields)
-            VALUES (v_public_policy_id, coll, 'create', '{}', '{}', ARRAY['*']);
-        END LOOP;
-    ELSE
-        -- Insertion for UUID IDs
-        FOREACH coll IN ARRAY read_collections LOOP
-            INSERT INTO directus_permissions (id, policy, collection, action, permissions, validation, fields)
-            VALUES (gen_random_uuid(), v_public_policy_id, coll, 'read', '{}', '{}', ARRAY['*']);
-        END LOOP;
-        FOREACH coll IN ARRAY create_collections LOOP
-            INSERT INTO directus_permissions (id, policy, collection, action, permissions, validation, fields)
-            VALUES (gen_random_uuid(), v_public_policy_id, coll, 'create', '{}', '{}', ARRAY['*']);
-        END LOOP;
-    END IF;
+        -- Cleanup existing to avoid duplicates
+        DELETE FROM directus_permissions WHERE policy = p.id AND collection = ANY(read_collections) AND action = 'read';
+        DELETE FROM directus_permissions WHERE policy = p.id AND collection = ANY(create_collections) AND action = 'create';
 
-    -- 5. ENSURE VISIBILITY
+        IF v_id_type = 'integer' THEN
+            -- Insertion for Serial/Integer IDs
+            FOREACH coll IN ARRAY read_collections LOOP
+                INSERT INTO directus_permissions (policy, collection, action, permissions, validation, fields)
+                VALUES (p.id, coll, 'read', '{}', '{}', ARRAY['*']);
+            END LOOP;
+            FOREACH coll IN ARRAY create_collections LOOP
+                INSERT INTO directus_permissions (policy, collection, action, permissions, validation, fields)
+                VALUES (p.id, coll, 'create', '{}', '{}', ARRAY['*']);
+            END LOOP;
+        ELSE
+            -- Insertion for UUID IDs
+            FOREACH coll IN ARRAY read_collections LOOP
+                INSERT INTO directus_permissions (id, policy, collection, action, permissions, validation, fields)
+                VALUES (gen_random_uuid(), p.id, coll, 'read', '{}', '{}', ARRAY['*']);
+            END LOOP;
+            FOREACH coll IN ARRAY create_collections LOOP
+                INSERT INTO directus_permissions (id, policy, collection, action, permissions, validation, fields)
+                VALUES (gen_random_uuid(), p.id, coll, 'create', '{}', '{}', ARRAY['*']);
+            END LOOP;
+        END IF;
+
+        applied_count := applied_count + 1;
+    END LOOP;
+
+    -- 3. ENSURE ALL ITEMS ARE ACTIVE
     UPDATE vendors SET status = 'active' WHERE status IS NULL OR status != 'active';
     UPDATE categories SET status = 'active' WHERE status IS NULL OR status != 'active';
     
-    RAISE NOTICE 'SUCCESS: Nuclear Directus 11 permissions restored for data + metadata.';
+    RAISE NOTICE 'SUCCESS: Absolute transparency granted across % policies.', applied_count;
 END $$;
+
+-- Locations Seeding
+INSERT INTO locations (id, name, slug, status, sort_order) VALUES
+('d1111111-1111-4000-f001-000000000001', 'Karachi', 'karachi', 'active', 1),
+('d1111111-1111-4000-f002-000000000002', 'Lahore', 'lahore', 'active', 2),
+('d1111111-1111-4000-f003-000000000003', 'Islamabad', 'islamabad', 'active', 3)
+ON CONFLICT (id) DO NOTHING;
+
+COMMIT;
 
 -- Locations Seeding
 INSERT INTO locations (id, name, slug, status, sort_order) VALUES
