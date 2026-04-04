@@ -120,21 +120,22 @@ BEGIN
     -- 3. FORCE-LINK THE POLICY TO THE PUBLIC ROLE
     IF public_role_id IS NOT NULL THEN
         -- Link the policy to the Public role specifically
-        INSERT INTO directus_access (policy, role)
-        VALUES (public_policy_id, public_role_id)
-        ON CONFLICT (role) DO UPDATE SET policy = EXCLUDED.policy;
+        -- We delete first to ensure we don't have overlapping policies for the Public role
+        DELETE FROM directus_access WHERE role = public_role_id;
+        INSERT INTO directus_access (id, policy, role)
+        VALUES (gen_random_uuid(), public_policy_id, public_role_id);
         
-        -- Also link it to "No Role" (Anonymous) if applicable in Directus 11
-        INSERT INTO directus_access (policy, role)
-        VALUES (public_policy_id, NULL)
-        ON CONFLICT DO NOTHING;
+        -- Also link it to "No Role" (Anonymous) if applicable
+        DELETE FROM directus_access WHERE role IS NULL AND "user" IS NULL;
+        INSERT INTO directus_access (id, policy, role)
+        VALUES (gen_random_uuid(), public_policy_id, NULL);
         
         RAISE NOTICE 'LINKED Public Role (%) to Policy (%)', public_role_id, public_policy_id;
     ELSE
         -- Fallback: Link to anonymous access only
-        INSERT INTO directus_access (policy, role)
-        VALUES (public_policy_id, NULL)
-        ON CONFLICT DO NOTHING;
+        DELETE FROM directus_access WHERE role IS NULL AND "user" IS NULL;
+        INSERT INTO directus_access (id, policy, role)
+        VALUES (gen_random_uuid(), public_policy_id, NULL);
         RAISE WARNING 'Public Role not found! Linked policy to anonymous only.';
     END IF;
 
