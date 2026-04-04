@@ -86,58 +86,77 @@ INSERT INTO employee_services (id, employee_id, name, price, duration_minutes, i
 INSERT INTO employee_schedules (id, employee_id, day_of_week, start_time, end_time, is_closed)
 SELECT gen_random_uuid(), e.id, d, '09:00:00', '21:00:00', false FROM employees e cross join generate_series(0, 6) d;
 
--- 6. PERMISSIONS (PUBLIC READ & CREATE)
+-- 6. PERMISSIONS (FAIL-SAFE PUBLIC RESET)
 DO $$ 
 DECLARE
-    -- Public READ collections
-    read_collections text[] := ARRAY['vendors', 'categories', 'employees', 'locations', 'reviews', 'working_hours', 'directus_files', 'directus_folders', 'vendor_categories', 'employee_services', 'employee_schedules', 'bookings'];
-    -- Public CREATE collections (Submissions)
+    -- Collections that must be PUBLICLY READABLE
+    read_collections text[] := ARRAY[
+        'vendors', 'categories', 'employees', 'locations', 'reviews', 
+        'working_hours', 'directus_files', 'directus_folders', 
+        'vendor_categories', 'employee_services', 'employee_schedules', 'bookings'
+    ];
+    -- Collections that must be PUBLICLY CREATABLE
     create_collections text[] := ARRAY['reviews', 'employee_reviews', 'bookings', 'contacts'];
     
-    coll text;
-    p record;
     public_policy_id uuid;
+    public_role_id uuid;
+    coll text;
 BEGIN
-    -- 1. IDENTIFY THE PUBLIC POLICY (Critical for Directus 11)
-    SELECT id INTO public_policy_id FROM directus_policies WHERE (name = 'Public' OR name = 'Public Access') LIMIT 1;
+    -- 1. IDENTIFY OR CREATE THE PUBLIC POLICY
+    SELECT id INTO public_policy_id FROM directus_policies WHERE name = 'Marketplace Public' LIMIT 1;
     
-    -- If no named policy found, find the one linked to the 'Public' role
     IF public_policy_id IS NULL THEN
-        SELECT policy INTO public_policy_id FROM directus_access WHERE role IS NULL OR role IN (SELECT id FROM directus_roles WHERE name = 'Public') LIMIT 1;
+        public_policy_id := gen_random_uuid();
+        INSERT INTO directus_policies (id, name, icon, description, ip_access, enforce_tfa, admin_access, app_access)
+        VALUES (public_policy_id, 'Marketplace Public', 'public', 'Unrestricted read-only access for the marketplace', NULL, false, false, false);
+        RAISE NOTICE 'CREATED new fail-safe Public Policy: %', public_policy_id;
+    ELSE
+        RAISE NOTICE 'VERIFIED existing Marketplace Public policy: %', public_policy_id;
     END IF;
 
-    -- If still NULL, default to the first non-admin policy
-    IF public_policy_id IS NULL THEN
-        SELECT id INTO public_policy_id FROM directus_policies WHERE admin_access = false LIMIT 1;
-    END IF;
+    -- 2. IDENTIFY THE PUBLIC ROLE
+    SELECT id INTO public_role_id FROM directus_roles WHERE name = 'Public' LIMIT 1;
 
-    IF public_policy_id IS NOT NULL THEN
-        RAISE NOTICE 'Restoring Marketplace Permissions to Policy ID: %', public_policy_id;
-
-        -- 2. CLEANUP existing permissions for this policy
-        DELETE FROM directus_permissions WHERE policy = public_policy_id AND collection = ANY(read_collections) AND action = 'read';
-        DELETE FROM directus_permissions WHERE policy = public_policy_id AND collection = ANY(create_collections) AND action = 'create';
-
-        -- 3. GRANT READ ACCESS
-        FOREACH coll IN ARRAY read_collections LOOP
-            INSERT INTO directus_permissions (policy, collection, action, permissions, validation, fields)
-            VALUES (public_policy_id, coll, 'read', '{}', '{}', ARRAY['*']);
-        END LOOP;
-        
-        -- 4. GRANT CREATE ACCESS
-        FOREACH coll IN ARRAY create_collections LOOP
-            INSERT INTO directus_permissions (policy, collection, action, permissions, validation, fields)
-            VALUES (public_policy_id, coll, 'create', '{}', '{}', ARRAY['*']);
-        END LOOP;
-
-        -- 5. ENSURE PUBLIC ROLE IS LINKED
+    -- 3. FORCE-LINK THE POLICY TO THE PUBLIC ROLE
+    IF public_role_id IS NOT NULL THEN
+        -- Link the policy to the Public role specifically
         INSERT INTO directus_access (policy, role)
-        SELECT public_policy_id, id FROM directus_roles WHERE name = 'Public'
+        VALUES (public_policy_id, public_role_id)
+        ON CONFLICT (role) DO UPDATE SET policy = EXCLUDED.policy;
+        
+        -- Also link it to "No Role" (Anonymous) if applicable in Directus 11
+        INSERT INTO directus_access (policy, role)
+        VALUES (public_policy_id, NULL)
         ON CONFLICT DO NOTHING;
+        
+        RAISE NOTICE 'LINKED Public Role (%) to Policy (%)', public_role_id, public_policy_id;
+    ELSE
+        -- Fallback: Link to anonymous access only
+        INSERT INTO directus_access (policy, role)
+        VALUES (public_policy_id, NULL)
+        ON CONFLICT DO NOTHING;
+        RAISE WARNING 'Public Role not found! Linked policy to anonymous only.';
     END IF;
 
-    -- 6. ENSURE ACTIVE STATUS: Force all salons to be visible
+    -- 4. CLEANUP AND RESTORE PERMISSIONS (FULL REVEAL)
+    DELETE FROM directus_permissions WHERE policy = public_policy_id AND collection = ANY(read_collections) AND action = 'read';
+    DELETE FROM directus_permissions WHERE policy = public_policy_id AND collection = ANY(create_collections) AND action = 'create';
+
+    FOREACH coll IN ARRAY read_collections LOOP
+        INSERT INTO directus_permissions (policy, collection, action, permissions, validation, fields)
+        VALUES (public_policy_id, coll, 'read', '{}', '{}', ARRAY['*']);
+    END LOOP;
+    
+    FOREACH coll IN ARRAY create_collections LOOP
+        INSERT INTO directus_permissions (policy, collection, action, permissions, validation, fields)
+        VALUES (public_policy_id, coll, 'create', '{}', '{}', ARRAY['*']);
+    END LOOP;
+
+    -- 5. ENSURE ACTIVE STATUS
     UPDATE vendors SET status = 'active' WHERE status IS NULL OR status != 'active';
+    UPDATE categories SET status = 'active' WHERE status IS NULL OR status != 'active';
+    
+    RAISE NOTICE 'SUCCESS: Public permissions restored for all collections.';
 END $$;
 
 -- Locations Seeding
