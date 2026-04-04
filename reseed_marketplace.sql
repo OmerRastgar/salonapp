@@ -86,7 +86,7 @@ INSERT INTO employee_services (id, employee_id, name, price, duration_minutes, i
 INSERT INTO employee_schedules (id, employee_id, day_of_week, start_time, end_time, is_closed)
 SELECT gen_random_uuid(), e.id, d, '09:00:00', '21:00:00', false FROM employees e cross join generate_series(0, 6) d;
 
--- 6. PERMISSIONS (FAIL-SAFE PUBLIC RESET)
+-- 6. PERMISSIONS (UNIVERSAL BLANKET GRANT)
 DO $$ 
 DECLARE
     -- Collections that must be PUBLICLY READABLE
@@ -95,69 +95,43 @@ DECLARE
         'working_hours', 'directus_files', 'directus_folders', 
         'vendor_categories', 'employee_services', 'employee_schedules', 'bookings'
     ];
-    -- Collections that must be PUBLICLY CREATABLE
+    -- Collections that must be PUBLICLY CREATABLE (for submissions)
     create_collections text[] := ARRAY['reviews', 'employee_reviews', 'bookings', 'contacts'];
     
-    public_policy_id uuid;
-    public_role_id uuid;
+    p record;
     coll text;
+    applied_count int := 0;
 BEGIN
-    -- 1. IDENTIFY OR CREATE THE PUBLIC POLICY
-    SELECT id INTO public_policy_id FROM directus_policies WHERE name = 'Marketplace Public' LIMIT 1;
-    
-    IF public_policy_id IS NULL THEN
-        public_policy_id := gen_random_uuid();
-        INSERT INTO directus_policies (id, name, icon, description, ip_access, enforce_tfa, admin_access, app_access)
-        VALUES (public_policy_id, 'Marketplace Public', 'public', 'Unrestricted read-only access for the marketplace', NULL, false, false, false);
-        RAISE NOTICE 'CREATED new fail-safe Public Policy: %', public_policy_id;
-    ELSE
-        RAISE NOTICE 'VERIFIED existing Marketplace Public policy: %', public_policy_id;
-    END IF;
-
-    -- 2. IDENTIFY THE PUBLIC ROLE
-    SELECT id INTO public_role_id FROM directus_roles WHERE name = 'Public' LIMIT 1;
-
-    -- 3. FORCE-LINK THE POLICY TO THE PUBLIC ROLE
-    IF public_role_id IS NOT NULL THEN
-        -- Link the policy to the Public role specifically
-        -- We delete first to ensure we don't have overlapping policies for the Public role
-        DELETE FROM directus_access WHERE role = public_role_id;
-        INSERT INTO directus_access (id, policy, role)
-        VALUES (gen_random_uuid(), public_policy_id, public_role_id);
+    -- 1. IDENTIFY ALL NON-ADMIN POLICIES
+    -- We loop through every policy that doesn't have system-level admin access
+    FOR p IN SELECT id, name FROM directus_policies WHERE admin_access = false LOOP
         
-        -- Also link it to "No Role" (Anonymous) if applicable
-        DELETE FROM directus_access WHERE role IS NULL AND "user" IS NULL;
-        INSERT INTO directus_access (id, policy, role)
-        VALUES (gen_random_uuid(), public_policy_id, NULL);
+        RAISE NOTICE 'Applying Marketplace Permissions to Policy: % (%)', p.name, p.id;
+
+        -- 2. CLEANUP existing permissions for THIS policy to avoid duplicates
+        DELETE FROM directus_permissions WHERE policy = p.id AND collection = ANY(read_collections) AND action = 'read';
+        DELETE FROM directus_permissions WHERE policy = p.id AND collection = ANY(create_collections) AND action = 'create';
+
+        -- 3. GRANT READ ACCESS
+        FOREACH coll IN ARRAY read_collections LOOP
+            INSERT INTO directus_permissions (id, policy, collection, action, permissions, validation, fields)
+            VALUES (gen_random_uuid(), p.id, coll, 'read', '{}', '{}', ARRAY['*']);
+        END LOOP;
         
-        RAISE NOTICE 'LINKED Public Role (%) to Policy (%)', public_role_id, public_policy_id;
-    ELSE
-        -- Fallback: Link to anonymous access only
-        DELETE FROM directus_access WHERE role IS NULL AND "user" IS NULL;
-        INSERT INTO directus_access (id, policy, role)
-        VALUES (gen_random_uuid(), public_policy_id, NULL);
-        RAISE WARNING 'Public Role not found! Linked policy to anonymous only.';
-    END IF;
+        -- 4. GRANT CREATE ACCESS
+        FOREACH coll IN ARRAY create_collections LOOP
+            INSERT INTO directus_permissions (id, policy, collection, action, permissions, validation, fields)
+            VALUES (gen_random_uuid(), p.id, coll, 'create', '{}', '{}', ARRAY['*']);
+        END LOOP;
 
-    -- 4. CLEANUP AND RESTORE PERMISSIONS (FULL REVEAL)
-    DELETE FROM directus_permissions WHERE policy = public_policy_id AND collection = ANY(read_collections) AND action = 'read';
-    DELETE FROM directus_permissions WHERE policy = public_policy_id AND collection = ANY(create_collections) AND action = 'create';
-
-    FOREACH coll IN ARRAY read_collections LOOP
-        INSERT INTO directus_permissions (policy, collection, action, permissions, validation, fields)
-        VALUES (public_policy_id, coll, 'read', '{}', '{}', ARRAY['*']);
-    END LOOP;
-    
-    FOREACH coll IN ARRAY create_collections LOOP
-        INSERT INTO directus_permissions (policy, collection, action, permissions, validation, fields)
-        VALUES (public_policy_id, coll, 'create', '{}', '{}', ARRAY['*']);
+        applied_count := applied_count + 1;
     END LOOP;
 
-    -- 5. ENSURE ACTIVE STATUS
+    -- 5. ENSURE ACTIVE STATUS: Force all items to be visible
     UPDATE vendors SET status = 'active' WHERE status IS NULL OR status != 'active';
     UPDATE categories SET status = 'active' WHERE status IS NULL OR status != 'active';
     
-    RAISE NOTICE 'SUCCESS: Public permissions restored for all collections.';
+    RAISE NOTICE 'SUCCESS: Marketplace permissions applied to % policies.', applied_count;
 END $$;
 
 -- Locations Seeding
