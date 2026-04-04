@@ -86,9 +86,6 @@ BEGIN
 
     -- 2. "GLOBAL REVEAL" (Force every policy to show everything)
     FOR p IN SELECT id FROM directus_policies LOOP
-        -- Ensure policy is active
-        UPDATE directus_policies SET status = 'active' WHERE id = p.id;
-        
         FOREACH coll IN ARRAY target_collections LOOP
             -- We inject the permission with '*' to cover simple string versions
             INSERT INTO directus_permissions (policy, collection, action, permissions, validation, fields)
