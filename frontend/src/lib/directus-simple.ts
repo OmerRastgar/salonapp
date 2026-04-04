@@ -142,15 +142,15 @@ const internalUrl = process.env.DIRECTUS_INTERNAL_URL || "http://directus:8055";
 
 let finalUrl = "";
 if (isServer) {
-  // Server-side: Prefer internal Docker URL for speed/reliability
+  // Server-side (Node.js): Use internal Docker network for speed
   finalUrl = internalUrl;
 } else {
-  // Browser-side: ALWAYS use the current origin in production.
-  // This provides a valid URL for the SDK and forces traffic through Port 80 (via Nginx).
-  finalUrl = typeof window !== 'undefined' ? window.location.origin : "";
+  // Client-side (Browser): Prioritize the configured public URL
+  // If not available, use current origin as fallback for Nginx proxies
+  finalUrl = publicUrl || (typeof window !== 'undefined' ? window.location.origin : "");
 }
 
-console.log(`[Directus] Initializing client with URL: "${finalUrl}" (Server: ${isServer})`);
+console.log(`[Directus] Initializing SDK on ${isServer ? 'SERVER' : 'CLIENT'} with URL: "${finalUrl}"`);
 const directus = createDirectus(finalUrl).with(rest());
 
 export class SimpleDirectusService {

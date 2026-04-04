@@ -16,14 +16,13 @@ import VenueCard from "@/components/ui/VenueCard";
 function SearchContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const initialCategory = searchParams.get("category") || "";
-  const initialLocation = searchParams.get("location") || "";
+  
+  // Directly derive search parameters from URL to ensure reactivity
+  const category = searchParams.get("category") || "";
+  const location = searchParams.get("location") || "";
   const searchQuery = searchParams.get("search") || "";
   
-  const [category, setCategory] = useState(initialCategory);
-  const [location, setLocation] = useState(initialLocation);
-  const [showMap, setShowMap] = useState(false); // Default to HIDDEN on mobile for better UX
-  const [isLocating, setIsLocating] = useState(false);
+  const [showMap, setShowMap] = useState(false);
   const [categories, setCategories] = useState<{ id: string; name: string; slug: string }[]>([]);
 
   const { data: searchLocations } = useSearchLocations();
@@ -37,15 +36,10 @@ function SearchContent() {
     SimpleDirectusService.getCategories().then(setCategories);
   }, []);
 
-  const locationOptions = [
-    { value: "", label: "All locations" },
-    ...searchLocations
-  ];
-
   return (
-    <div className="h-full flex flex-col bg-background overflow-hidden relative">
-      {/* Header / Sub-Toolbar */}
-      <header className="flex-shrink-0 border-b border-border/40 bg-white/80 backdrop-blur-md z-[110]">
+    <div className="min-h-screen flex flex-col bg-background relative">
+      {/* Header / Sub-Toolbar - Sticky for easy access */}
+      <header className="sticky top-0 z-[110] border-b border-border/40 bg-white/90 backdrop-blur-md">
         <div className="max-w-[1440px] mx-auto px-4 md:px-6 py-3 flex flex-col md:flex-row items-center gap-4">
            <div className="hidden md:flex items-center gap-3 w-full md:w-auto">
               <SiteBreadcrumbs items={[{ label: "Home", href: "/" }, { label: "Search" }]} />
@@ -81,27 +75,29 @@ function SearchContent() {
         </div>
       </header>
 
-      {/* Main Content: Split Layout */}
-      <main className="flex-1 flex min-h-0 overflow-hidden relative">
+      {/* Main Content Area */}
+      <main className="flex-1 flex relative">
         
-        {/* Left Column: Results */}
-        <div className={`flex-1 flex flex-col min-h-0 overflow-hidden transition-all duration-500 ease-in-out ${showMap ? 'lg:w-[50%] xl:w-[45%]' : 'w-full'}`}>
-           <div className="flex-1 min-h-0 overflow-y-auto px-4 md:px-6 py-4 md:py-8 custom-scrollbar">
-              <div className="max-w-4xl mx-auto min-h-full">
-                 <div className="mb-8">
-                    <h1 className="text-3xl font-black tracking-tight text-foreground">
+        {/* Results Column */}
+        <div className={`flex-1 transition-all duration-500 ease-in-out ${showMap ? 'lg:w-[50%] xl:w-[45%]' : 'w-full'}`}>
+           <div className="px-4 md:px-6 py-6 md:py-10 min-h-[500px]">
+              <div className="max-w-4xl mx-auto">
+                 <div className="mb-10">
+                    <h1 className="text-3xl md:text-4xl font-black tracking-tight text-foreground">
                         {category ? categories.find(c => c.slug === category)?.name : 'All Venues'}
-                        {location && <span className="text-purple-600"> in {location}</span>}
+                        {location && <span className="text-primary/70"> in {location}</span>}
                     </h1>
-                    <p className="text-muted-foreground mt-2 font-medium">Found {vendors?.length || 0} premium locations</p>
+                    <p className="text-muted-foreground mt-2 font-bold uppercase tracking-wider text-[10px]">
+                      Found {vendors?.length || 0} premium locations
+                    </p>
                  </div>
 
                  {loading ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                       {[1,2,3,4].map(i => <div key={i} className="aspect-[4/5] bg-muted/40 animate-pulse rounded-[32px]" />)}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                       {[1,2,3,4].map(i => <div key={i} className="aspect-[4/3] bg-muted/40 animate-pulse rounded-3xl" />)}
                     </div>
                  ) : vendors && vendors.length > 0 ? (
-                    <div className={`grid gap-8 ${showMap ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
+                    <div className={`grid gap-10 ${showMap ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
                        {vendors.map((vendor, idx) => (
                            <VenueCard 
                              key={vendor.id}
@@ -120,18 +116,14 @@ function SearchContent() {
                        ))}
                     </div>
                  ) : (
-                    <div className="py-20 text-center bg-muted/20 rounded-[40px] border border-dashed border-border/60">
-                       <p className="text-muted-foreground font-bold italic">No results found for your specific criteria.</p>
+                    <div className="py-24 text-center bg-muted/20 rounded-[40px] border border-dashed border-border/60">
+                       <p className="text-muted-foreground font-bold italic mb-4">No results found for your specific criteria.</p>
                        <Button 
-                         variant="link" 
-                         onClick={() => { 
-                           setCategory(""); 
-                           setLocation(""); 
-                           router.push("/search");
-                         }} 
-                         className="text-purple-600 mt-2 font-bold hover:no-underline"
+                         variant="outline" 
+                         onClick={() => router.push("/search")} 
+                         className="rounded-full border-primary/20 text-primary font-bold px-8"
                        >
-                         Reset all filters & categories
+                         Clear all filters
                        </Button>
                     </div>
                  )}
