@@ -75,28 +75,32 @@ INSERT INTO employee_schedules (id, employee_id, day_of_week, start_time, end_ti
 SELECT gen_random_uuid(), e.id, d, '09:00:00', '21:00:00', false FROM employees e cross join generate_series(0, 6) d;
 
 -- 6. PERMISSIONS (PUBLIC READ)
+DO $$ 
+DECLARE
+    target_collections text[] := ARRAY['vendors', 'categories', 'employees', 'locations', 'reviews', 'working_hours', 'directus_files', 'vendor_categories', 'employee_services', 'employee_schedules'];
+    coll text;
+    p record;
+BEGIN
     -- 1. WIPE THE SLATE (Global cleanup of any conflicting marketplace rules)
-    -- This kills the "Mystery Policies" we found in your diagnostic
-    DELETE FROM directus_permissions WHERE collection IN (SELECT unnest(target_collections)) AND action = 'read';
+    DELETE FROM directus_permissions WHERE collection = ANY(target_collections) AND action = 'read';
 
-    -- 2. Ensure at least one Public Policy exists
-    INSERT INTO directus_policies (id, name, icon, description, ip_access, enforce_tfa) 
-    VALUES ('abf8a154-5b1c-4a46-ac9c-7300570f4f17', 'Public Access', 'public', 'Master Public Unlock', NULL, false)
-    ON CONFLICT (id) DO NOTHING;
-
-    INSERT INTO directus_access (id, policy, role, "user") 
-    VALUES (gen_random_uuid(), 'abf8a154-5b1c-4a46-ac9c-7300570f4f17', NULL, NULL)
-    ON CONFLICT DO NOTHING;
-
-    -- 3. GLOBAL APPLY: Grant full field read access to EVERY policy for our collections
+    -- 2. "GLOBAL REVEAL" (Force every policy to show everything)
     FOR p IN SELECT id FROM directus_policies LOOP
+        -- Ensure policy is active
+        UPDATE directus_policies SET status = 'active' WHERE id = p.id;
+        
         FOREACH coll IN ARRAY target_collections LOOP
+            -- We inject the permission with '*' to cover simple string versions
             INSERT INTO directus_permissions (policy, collection, action, permissions, validation, fields)
-            VALUES (p.id, coll, 'read', '{}', '{}', ARRAY['*']);
+            VALUES (p.id, coll, 'read', '{}', '{}', '*')
+            ON CONFLICT DO NOTHING;
+            
+            -- And we update it to an array '{*}' to cover Directus 11 array versions
+            UPDATE directus_permissions SET fields = ARRAY['*'] WHERE policy = p.id AND collection = coll AND action = 'read';
         END LOOP;
     END LOOP;
     
-    -- 4. ENSURE ACTIVE STATUS: Force all salons to be visible
+    -- 3. ENSURE ACTIVE STATUS: Force all salons to be visible
     UPDATE vendors SET status = 'active';
 END $$;
 

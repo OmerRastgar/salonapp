@@ -34,24 +34,27 @@ if [ ! -f .env ]; then
 fi
 
 # 3. Load database credentials from .env
-DB_USER=$(grep -v '^#' .env | grep 'DB_USER' | cut -d '=' -f2)
-DB_PASS=$(grep -v '^#' .env | grep 'DB_PASSWORD' | cut -d '=' -f2)
-DB_NAME=$(grep -v '^#' .env | grep 'DB_DATABASE' | cut -d '=' -f2)
+DB_USER=$(grep -E "^DB_USER=" .env | cut -d'=' -f2)
+DB_PASS=$(grep -E "^DB_PASSWORD=" .env | cut -d'=' -f2)
+DB_NAME=$(grep -E "^DB_DATABASE=" .env | cut -d'=' -f2)
 
 # 4. Target Seeding (Assuming services are already running)
-# Auto-detect Database container ID (Greedy match)
+# Auto-detect Database container ID
 echo -e "${BLUE}>>> Identifying target containers...${NC}"
-DB_CONTAINER=$(docker ps -a -q --filter "name=database" | head -n 1)
+DB_CONTAINER=$(docker ps -q --filter "name=database" | head -n 1)
+
 if [ -z "$DB_CONTAINER" ]; then
     echo -e "${RED}Error: Could not find Database container.${NC}"
     exit 1
 fi
 
-echo -e "${BLUE}>>> Targeting DB: $DB_CONTAINER${NC}"
+echo -e "${BLUE}>>> Targeting DB Container: $DB_CONTAINER${NC}"
 
 # 5. Step 1: Base SQL Seeding
 echo -e "${BLUE}>>> Step 1: Resetting database and seeding core records...${NC}"
-docker exec -i $DB_CONTAINER psql -U $DB_USER -d $DB_NAME < reseed_marketplace.sql
+# Use PGPASSWORD to avoid interactive prompt
+docker exec -e PGPASSWORD="$DB_PASS" -i $DB_CONTAINER psql -U $DB_USER -d $DB_NAME < reseed_marketplace.sql
+
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✔ Base data seeded successfully.${NC}"
 else

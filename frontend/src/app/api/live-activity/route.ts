@@ -5,16 +5,17 @@ const METRIC_KEY = "live_activity";
 async function getDirectusUrls() {
   const urls = [];
   
-  // Prioritize URLs from environment variables
-  if (process.env.NEXT_PUBLIC_DIRECTUS_URL) urls.push(process.env.NEXT_PUBLIC_DIRECTUS_URL);
+  // 1. Internal Docker Network (Fastest & most reliable for server-to-server)
   if (process.env.DIRECTUS_INTERNAL_URL) urls.push(process.env.DIRECTUS_INTERNAL_URL);
-  
-  // Docker-to-Docker fallback (only works inside the same network)
   urls.push("http://directus:8055");
+  
+  // 2. Public URL (fallback)
+  if (process.env.NEXT_PUBLIC_DIRECTUS_URL) urls.push(process.env.NEXT_PUBLIC_DIRECTUS_URL);
+  if (process.env.DIRECTUS_URL) urls.push(process.env.DIRECTUS_URL);
   
   // Remove duplicates and empty values
   const results = Array.from(new Set(urls.filter(Boolean)));
-  console.log("Candidate Directus URLs:", results);
+  console.log("[Directus] API Route Candidate URLs:", results);
   return results;
 }
 
