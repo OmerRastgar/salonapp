@@ -81,24 +81,22 @@ DECLARE
     coll text;
     p record;
 BEGIN
-    -- 1. WIPE THE SLATE (Global cleanup of any conflicting marketplace rules)
+    -- 1. CLEANUP ALL MARKETPLACE READ PERMISSIONS (Avoid duplicates or restricted rules)
     DELETE FROM directus_permissions WHERE collection = ANY(target_collections) AND action = 'read';
 
-    -- 2. "GLOBAL REVEAL" (Force every policy to show everything)
+    -- 2. "GLOBAL REVEAL" (Apply to every policy found in the system, ensuring Public is covered)
     FOR p IN SELECT id FROM directus_policies LOOP
         FOREACH coll IN ARRAY target_collections LOOP
-            -- We inject the permission with '*' to cover simple string versions
+            -- Standard Directus 11 array field format
             INSERT INTO directus_permissions (policy, collection, action, permissions, validation, fields)
-            VALUES (p.id, coll, 'read', '{}', '{}', '*')
-            ON CONFLICT DO NOTHING;
-            
-            -- And we update it to an array '{*}' to cover Directus 11 array versions
-            UPDATE directus_permissions SET fields = ARRAY['*'] WHERE policy = p.id AND collection = coll AND action = 'read';
+            VALUES (p.id, coll, 'read', '{}', '{}', ARRAY['*'])
+            ON CONFLICT (policy, collection, action) 
+            DO UPDATE SET fields = ARRAY['*'], permissions = '{}', validation = '{}';
         END LOOP;
     END LOOP;
     
     -- 3. ENSURE ACTIVE STATUS: Force all salons to be visible
-    UPDATE vendors SET status = 'active';
+    UPDATE vendors SET status = 'active' WHERE status IS NULL OR status != 'active';
 END $$;
 
 -- Locations Seeding
