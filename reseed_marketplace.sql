@@ -97,27 +97,45 @@ DECLARE
     coll text;
     p record;
 BEGIN
-    -- 1. CLEANUP ALL RELEVANT PERMISSIONS
-    DELETE FROM directus_permissions WHERE collection = ANY(read_collections) AND action = 'read';
-    DELETE FROM directus_permissions WHERE collection = ANY(create_collections) AND action = 'create';
-    DELETE FROM directus_permissions WHERE collection = 'directus_files' AND action = 'read';
+    -- 1. IDENTIFY THE PUBLIC POLICY (Critical for Directus 11)
+    SELECT id INTO public_policy_id FROM directus_policies WHERE (name = 'Public' OR name = 'Public Access') LIMIT 1;
+    
+    -- If no named policy found, find the one linked to the 'Public' role
+    IF public_policy_id IS NULL THEN
+        SELECT policy INTO public_policy_id FROM directus_access WHERE role IS NULL OR role IN (SELECT id FROM directus_roles WHERE name = 'Public') LIMIT 1;
+    END IF;
 
-    -- 2. "GLOBAL REVEAL" (Apply to every policy found in the system, ensuring Public is covered)
-    FOR p IN SELECT id FROM directus_policies LOOP
-        -- Grant READ
+    -- If still NULL, default to the first non-admin policy
+    IF public_policy_id IS NULL THEN
+        SELECT id INTO public_policy_id FROM directus_policies WHERE admin_access = false LIMIT 1;
+    END IF;
+
+    IF public_policy_id IS NOT NULL THEN
+        RAISE NOTICE 'Restoring Marketplace Permissions to Policy ID: %', public_policy_id;
+
+        -- 2. CLEANUP existing permissions for this policy
+        DELETE FROM directus_permissions WHERE policy = public_policy_id AND collection = ANY(read_collections) AND action = 'read';
+        DELETE FROM directus_permissions WHERE policy = public_policy_id AND collection = ANY(create_collections) AND action = 'create';
+
+        -- 3. GRANT READ ACCESS
         FOREACH coll IN ARRAY read_collections LOOP
             INSERT INTO directus_permissions (policy, collection, action, permissions, validation, fields)
-            VALUES (p.id, coll, 'read', '{}', '{}', ARRAY['*']);
+            VALUES (public_policy_id, coll, 'read', '{}', '{}', ARRAY['*']);
         END LOOP;
         
-        -- Grant CREATE (For reviews and bookings)
+        -- 4. GRANT CREATE ACCESS
         FOREACH coll IN ARRAY create_collections LOOP
             INSERT INTO directus_permissions (policy, collection, action, permissions, validation, fields)
-            VALUES (p.id, coll, 'create', '{}', '{}', ARRAY['*']);
+            VALUES (public_policy_id, coll, 'create', '{}', '{}', ARRAY['*']);
         END LOOP;
-    END LOOP;
-    
-    -- 3. ENSURE ACTIVE STATUS: Force all salons to be visible
+
+        -- 5. ENSURE PUBLIC ROLE IS LINKED
+        INSERT INTO directus_access (policy, role)
+        SELECT public_policy_id, id FROM directus_roles WHERE name = 'Public'
+        ON CONFLICT DO NOTHING;
+    END IF;
+
+    -- 6. ENSURE ACTIVE STATUS: Force all salons to be visible
     UPDATE vendors SET status = 'active' WHERE status IS NULL OR status != 'active';
 END $$;
 
