@@ -52,6 +52,10 @@ services:
       - STORAGE_LOCATIONS=local
       - STORAGE_LOCAL_DRIVER=local
       - STORAGE_LOCAL_ROOT=/directus/uploads
+      - TELEMETRY_ENABLED=false
+      # Use a single worker to save memory on the VPS
+      - PM2_CLUSTER_MODE=false
+    mem_limit: 1G
     ports:
       - "8055:8055"
     volumes:
