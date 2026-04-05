@@ -432,6 +432,12 @@ export class SimpleDirectusService {
 
   static async getCategories() {
     try {
+      if (!isServer) {
+        const res = await fetch('/api/categories', { cache: 'no-store' });
+        if (!res.ok) throw new Error(`Categories fetch failed: ${res.status}`);
+        const payload = await res.json();
+        return (payload.data || []) as Category[];
+      }
       const response = await directus.request(
         readItems('categories', {
           filter: { status: { _eq: 'active' } },
@@ -448,6 +454,12 @@ export class SimpleDirectusService {
 
   static async getLocations() {
     try {
+      if (!isServer) {
+        const res = await fetch('/api/locations', { cache: 'no-store' });
+        if (!res.ok) throw new Error(`Locations fetch failed: ${res.status}`);
+        const payload = await res.json();
+        return (payload.data || []) as Location[];
+      }
       const response = await directus.request(
         readItems('locations', {
           filter: { status: { _eq: 'active' } },
