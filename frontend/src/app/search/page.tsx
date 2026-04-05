@@ -76,7 +76,7 @@ function SearchContent() {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex relative">
+      <main className="flex-1 flex relative" style={{ minHeight: 'calc(100vh - 120px)' }}>
         
         {/* Results Column */}
         <div className={`flex-1 transition-all duration-500 ease-in-out ${showMap ? 'lg:w-[50%] xl:w-[45%]' : 'w-full'}`}>

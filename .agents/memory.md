@@ -79,6 +79,29 @@
 
 ---
 
+## Entry 9 - 2026-04-05
+
+### Incident: Vendors/Categories Invisible to Logged-Out Users (403 on Public Role)
+- **Description**: Vendors and categories were completely invisible on the site unless the user was already logged into Directus in another tab. The browser console showed `GET /items/vendors 403` and `GET /items/categories 403` for anonymous users.
+- **Root Cause**: Three compounding issues:
+    1. `DIRECTUS_TOKEN` in `.env` was a made-up value never registered in the Directus database. Directus rejected it with `Invalid user credentials`.
+    2. `DIRECTUS_TOKEN` was not passed into the frontend container in `docker-compose.yml` (missing env var), so all Next.js API proxy routes ran without auth.
+    3. The frontend SDK client in `directus-simple.ts` called Directus directly from the browser (client-side) as an anonymous user, making all reads dependent on the Public role having correct permissions. When the Public role lacked permissions, everything broke for logged-out users.
+    4. `NEXT_PUBLIC_DIRECTUS_URL` had `:8055` instead of port 80, bypassing Nginx entirely.
+- **Solution**:
+    1. Registered a real static token in the database: `UPDATE directus_users SET token = 'salonapp-static-token-2026' WHERE email = 'admin@saloonmarketplace.com'`.
+    2. Added `DIRECTUS_TOKEN=${DIRECTUS_TOKEN}` to the `frontend` service in `docker-compose.yml`.
+    3. Created Next.js API proxy routes (`/api/vendors`, `/api/vendors/enrichment`, `/api/categories`, `/api/locations`) that use the server-side token. The browser never calls Directus directly for reads.
+    4. Fixed `NEXT_PUBLIC_DIRECTUS_URL` to use port 80 (Nginx gateway).
+    5. Updated `directus-simple.ts` to route all client-side reads through the proxy routes instead of calling Directus directly.
+- **Prevention**:
+    - Always verify `DIRECTUS_TOKEN` works with `curl -s http://localhost:8055/users/me -H "Authorization: Bearer <token>"` before deploying.
+    - Never rely on the Directus Public role for data visibility — always proxy reads through authenticated Next.js API routes.
+    - After any `.env` change, run `docker compose exec frontend env | grep DIRECTUS_TOKEN` to confirm the container actually has the new value. If not, run `sed -i` directly on the VPS to update the file, then `docker compose up -d --force-recreate frontend`.
+    - `NEXT_PUBLIC_DIRECTUS_URL` must always point to the Nginx gateway (port 80), never directly to Directus (port 8055).
+
+---
+
 ## Entry 8 - 2026-04-05
 
 ### Incident: Persistent 403 Forbidden & "Integer vs UUID" Schema Mismatch

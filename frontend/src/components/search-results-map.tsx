@@ -158,18 +158,24 @@ export function SearchResultsMap({ vendors, userLocation, fullBleed }: SearchRes
           bounds.extend([vendor.latitude, vendor.longitude]);
         });
 
-        // Increase delay to allow container transition to fully finish
-        setTimeout(() => {
-            if (cancelled || !leafletMapRef.current) return;
-            
-            leafletMapRef.current.invalidateSize();
+        // Fire invalidateSize + fitBounds after the CSS/framer transition finishes (500ms)
+        // Then again at 800ms as a safety net for slower renders
+        const fitMap = () => {
+          if (cancelled || !leafletMapRef.current) return;
+          leafletMapRef.current.invalidateSize();
+          if (vendorsWithCoordinates.length === 1) {
+            leafletMapRef.current.setView(
+              [vendorsWithCoordinates[0].latitude, vendorsWithCoordinates[0].longitude],
+              14,
+              { animate: true }
+            );
+          } else if (vendorsWithCoordinates.length > 1) {
+            leafletMapRef.current.fitBounds(bounds, { padding: [60, 60], maxZoom: 13, animate: true });
+          }
+        };
 
-            if (vendorsWithCoordinates.length === 1) {
-              leafletMapRef.current.setView([vendorsWithCoordinates[0].latitude, vendorsWithCoordinates[0].longitude], 14, { animate: true });
-            } else if (vendorsWithCoordinates.length > 1) {
-              leafletMapRef.current.fitBounds(bounds, { padding: [100, 100], maxZoom: 13, animate: true });
-            }
-        }, 500); 
+        setTimeout(fitMap, 550);
+        setTimeout(fitMap, 900);
       }
 
       setupMap().catch((error) => console.error("Failed to map:", error));
@@ -196,7 +202,7 @@ export function SearchResultsMap({ vendors, userLocation, fullBleed }: SearchRes
 
   if (fullBleed) {
     return (
-      <div ref={mapRef} className="h-full w-full bg-gray-100 z-0" />
+      <div ref={mapRef} className="h-full w-full bg-gray-100 z-0" style={{ minHeight: '500px' }} />
     );
   }
 
