@@ -137,17 +137,20 @@ export interface Booking {
 const isServer = typeof window === 'undefined';
 
 // Setup Directus URL logic
-const publicUrl = process.env.NEXT_PUBLIC_DIRECTUS_URL || "";
+const publicUrl = (process.env.NEXT_PUBLIC_DIRECTUS_URL || "").replace(':8055', '');
 const internalUrl = process.env.DIRECTUS_INTERNAL_URL || "http://directus:8055";
 
 let finalUrl = "";
 if (isServer) {
-  // Server-side (Node.js): Use internal Docker network for speed
   finalUrl = internalUrl;
 } else {
-  // Client-side (Browser): Prioritize the configured public URL
-  // If not available, use current origin as fallback for Nginx proxies
+  // Client-side: Force same-origin if no public URL is provided, 
+  // and strip :8055 to ensure Nginx proxy is used.
   finalUrl = publicUrl || (typeof window !== 'undefined' ? window.location.origin : "");
+  if (finalUrl.includes(':8055')) {
+    console.warn('[Directus] Port 8055 detected in Client URL. Switching to Unified Gateway (Port 80).');
+    finalUrl = finalUrl.replace(':8055', '');
+  }
 }
 
 console.log(`[Directus] Initializing SDK on ${isServer ? 'SERVER' : 'CLIENT'} with URL: "${finalUrl}"`);
