@@ -44,34 +44,36 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="h-full bg-background overflow-y-auto custom-scrollbar">
-      {/* Signature Animated 'Pink Blob' Background - More Vibrant & Morphing */}
-      <motion.div
-        className="absolute top-[-10%] right-[-10%] w-[400px] md:w-[1000px] h-[400px] md:h-[1000px] bg-gradient-to-br from-pink-500/30 via-purple-500/20 to-transparent rounded-full blur-[80px] md:blur-[140px] pointer-events-none z-0"
-        animate={{ 
-          scale: [1, 1.1, 0.95, 1.05, 1],
-          rotate: [0, 90, 180, 270, 360],
-          borderRadius: ["40% 60% 70% 30% / 40% 50% 60% 50%", "50% 50% 20% 80% / 25% 80% 20% 75%", "40% 60% 70% 30% / 40% 50% 60% 50%"]
-        }}
-        transition={{ duration: 25, repeat: Infinity, ease: 'linear' }}
-      />
-      <motion.div
-        className="absolute bottom-[-10%] left-[-10%] w-[350px] md:w-[800px] h-[350px] md:h-[800px] bg-gradient-to-tr from-purple-600/25 via-pink-400/20 to-transparent rounded-full blur-[70px] md:blur-[120px] pointer-events-none z-0"
-        animate={{ 
-          scale: [1, 1.15, 0.9, 1.1, 1],
-          rotate: [360, 270, 180, 90, 0],
-          borderRadius: ["50% 50% 20% 80% / 25% 80% 20% 75%", "40% 60% 70% 30% / 40% 50% 60% 50%", "50% 50% 20% 80% / 25% 80% 20% 75%"]
-        }}
-        transition={{ duration: 30, repeat: Infinity, ease: 'linear' }}
-      />
-      <motion.div
-        className="absolute top-[20%] left-[20%] w-[600px] h-[600px] bg-pink-400/10 rounded-full blur-[160px] pointer-events-none z-0"
-        animate={{ 
-          scale: [1, 1.3, 0.8, 1],
-          opacity: [0.3, 0.6, 0.3]
-        }}
-        transition={{ duration: 15, repeat: Infinity, ease: 'easeInOut' }}
-      />
+    <div className="h-full bg-background overflow-y-auto overflow-x-hidden custom-scrollbar relative">
+      {/* Background Animated 'Pink Blobs' - Contained to prevent layout shifts */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+        <motion.div
+          className="absolute top-[-10%] right-[-10%] w-[400px] md:w-[1000px] h-[400px] md:h-[1000px] bg-gradient-to-br from-pink-500/30 via-purple-500/20 to-transparent rounded-full blur-[80px] md:blur-[140px]"
+          animate={{ 
+            scale: [1, 1.1, 0.95, 1.05, 1],
+            rotate: [0, 90, 180, 270, 360],
+            borderRadius: ["40% 60% 70% 30% / 40% 50% 60% 50%", "50% 50% 20% 80% / 25% 80% 20% 75%", "40% 60% 70% 30% / 40% 50% 60% 50%"]
+          }}
+          transition={{ duration: 25, repeat: Infinity, ease: 'linear' }}
+        />
+        <motion.div
+          className="absolute bottom-[-10%] left-[-10%] w-[350px] md:w-[800px] h-[350px] md:h-[800px] bg-gradient-to-tr from-purple-600/25 via-pink-400/20 to-transparent rounded-full blur-[70px] md:blur-[120px]"
+          animate={{ 
+            scale: [1, 1.15, 0.9, 1.1, 1],
+            rotate: [360, 270, 180, 90, 0],
+            borderRadius: ["50% 50% 20% 80% / 25% 80% 20% 75%", "40% 60% 70% 30% / 40% 50% 60% 50%", "50% 50% 20% 80% / 25% 80% 20% 75%"]
+          }}
+          transition={{ duration: 30, repeat: Infinity, ease: 'linear' }}
+        />
+        <motion.div
+          className="absolute top-[20%] left-[20%] w-[600px] h-[600px] bg-pink-400/10 rounded-full blur-[160px]"
+          animate={{ 
+            scale: [1, 1.3, 0.8, 1],
+            opacity: [0.3, 0.6, 0.3]
+          }}
+          transition={{ duration: 15, repeat: Infinity, ease: 'easeInOut' }}
+        />
+      </div>
 
       {/* Hero Section */}
       <div className="relative z-40 mx-auto max-w-4xl px-4 py-12 md:py-16 text-center sm:py-24">

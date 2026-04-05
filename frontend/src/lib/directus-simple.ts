@@ -1,4 +1,4 @@
-import { createDirectus, rest, readItems, readItem } from '@directus/sdk';
+import { createDirectus, rest, staticToken, readItems, readItem } from '@directus/sdk';
 
 // Types for the data
 export interface Vendor {
@@ -139,6 +139,8 @@ const isServer = typeof window === 'undefined';
 // Setup Directus URL logic
 const publicUrl = (process.env.NEXT_PUBLIC_DIRECTUS_URL || "").replace(':8055', '');
 const internalUrl = process.env.DIRECTUS_INTERNAL_URL || "http://directus:8055";
+// Server-side static token for authenticated reads (bypasses Public role issues)
+const serverToken = process.env.DIRECTUS_TOKEN;
 
 let finalUrl = "";
 if (isServer) {
@@ -156,8 +158,11 @@ if (isServer) {
 console.log(`[Directus] Initializing SDK on ${isServer ? 'SERVER' : 'CLIENT'} with URL: "${finalUrl}"`);
 console.log(`[Directus] Environment vars - PUBLIC: "${publicUrl}", INTERNAL: "${internalUrl}"`);
 
-
-const directus = createDirectus(finalUrl).with(rest());
+// On the server, attach the static token so reads always succeed regardless of Public role config.
+// On the client, remain anonymous (public role) — this is correct browser behaviour.
+const directus = isServer && serverToken
+  ? createDirectus(finalUrl).with(rest()).with(staticToken(serverToken))
+  : createDirectus(finalUrl).with(rest());
 
 export class SimpleDirectusService {
   static async getVendors(options: {
@@ -172,94 +177,36 @@ export class SimpleDirectusService {
   } = {}) {
     try {
       console.log('Fetching vendors with options:', options);
-      
-      const filters: any = {
-        status: { _eq: 'active' }
-      };
 
-      if (options.location) {
-        const normalizedLocation = options.location.trim();
-        const [areaPartRaw, cityPartRaw] = normalizedLocation.includes('||')
-          ? normalizedLocation.split('||')
-          : normalizedLocation.split(',').map((part) => part.trim());
-        const areaPart = areaPartRaw?.trim();
-        const cityPart = cityPartRaw?.trim();
+      // Route all vendor fetches through the Next.js API proxy so the Directus
+      // admin token is used server-side and we never depend on the Public role.
+      const params = new URLSearchParams();
+      if (options.category) params.set('category', options.category);
+      if (options.location) params.set('location', options.location);
+      if (options.search) params.set('search', options.search);
+      if (options.limit) params.set('limit', String(options.limit));
+      if (options.offset) params.set('offset', String(options.offset));
 
-        if (areaPart && cityPart) {
-          filters._and = [
-            ...(filters._and || []),
-            { city: { _icontains: cityPart } },
-            { area: { _icontains: areaPart } }
-          ];
-        } else {
-          filters._and = [
-            ...(filters._and || []),
-            {
-              _or: [
-                { city: { _icontains: normalizedLocation } },
-                { area: { _icontains: normalizedLocation } }
-              ]
-            }
-          ];
-        }
+      let vendors: Vendor[];
+
+      if (isServer) {
+        // Server path: call Directus directly with token (already set on the directus client)
+        const filters: any = { status: { _eq: 'active' } };
+        if (options.featured) filters.is_featured = { _eq: true };
+        const response = await directus.request(readItems('vendors', {
+          filter: filters,
+          fields: ['*', 'latitude', 'longitude', 'categories.categories_id.*', 'working_hours.*'],
+          limit: options.limit || 20,
+          offset: options.offset || 0,
+        }));
+        vendors = response as Vendor[];
+      } else {
+        // Client path: use the proxy API route (token stays server-side)
+        const res = await fetch(`/api/vendors?${params.toString()}`, { cache: 'no-store' });
+        if (!res.ok) throw new Error(`Vendor fetch failed: ${res.status}`);
+        const payload = await res.json();
+        vendors = (payload.data || []) as Vendor[];
       }
-
-      if (options.featured) {
-        filters.is_featured = { _eq: true };
-      }
-
-      if (options.search) {
-        filters._or = [
-          { name: { _icontains: options.search } },
-          { description: { _icontains: options.search } },
-          { area: { _icontains: options.search } },
-          { city: { _icontains: options.search } }
-        ];
-      }
-
-      // Category filtering: use two-step approach to avoid M2M deep-filter 403 errors.
-      // Step 1: find vendor IDs in the junction table that match the category.
-      if (options.category) {
-        const categorySlug = options.category.toLowerCase().replace(/\s+/g, '-');
-        const junctionRows = await directus.request(
-          readItems('vendor_categories', {
-            fields: ['vendors_id', 'categories_id.slug', 'categories_id.name'],
-            limit: 100
-          })
-        ) as any[];
-
-        const matchingVendorIds = junctionRows
-          .filter((row: any) => {
-            const slug: string = (row.categories_id?.slug || '').toLowerCase();
-            const name: string = (row.categories_id?.name || '').toLowerCase();
-            const searchTerm = options.category!.toLowerCase();
-            
-            return (
-              slug === searchTerm || 
-              searchTerm.includes(slug) ||
-              name.includes(searchTerm) ||
-              searchTerm.includes(name)
-            );
-          })
-          .map((row: any) => row.vendors_id);
-
-        if (matchingVendorIds.length === 0) {
-          return { data: [] as Vendor[], meta: null };
-        }
-        filters.id = { _in: matchingVendorIds };
-      }
-
-      const query: any = {
-        filter: filters,
-        fields: ['*', 'latitude', 'longitude', 'categories.categories_id.*', 'working_hours.*', 'services.*'],
-        limit: options.limit || 10,
-        offset: options.offset || 0,
-        // Manual cache-buster in the URL
-        _t: Date.now()
-      };
-
-      const response = await directus.request(readItems('vendors', query));
-      const vendors = response as Vendor[];
 
       if (vendors.length === 0) {
         return { data: [], meta: null };
@@ -267,44 +214,41 @@ export class SimpleDirectusService {
 
       const vendorIds = vendors.map((vendor) => vendor.id);
 
-      const [workingHoursResponse, employeesResponse] = await Promise.all([
-        directus.request(
-          readItems('working_hours', {
-            filter: { vendor_id: { _in: vendorIds } },
-            fields: ['*'],
-            limit: 500
-          })
-        ),
-        directus.request(
-          readItems('employees', {
-            filter: {
-              vendor_id: { _in: vendorIds },
-              status: { _eq: 'active' }
-            },
-            fields: ['id', 'vendor_id'],
-            limit: 500
-          })
-        )
-      ]);
+      // For enrichment data, use the proxy on client or direct SDK on server
+      let workingHours: WorkingHour[] = [];
+      let employees: Pick<Employee, 'id' | 'vendor_id'>[] = [];
 
-      const workingHours = workingHoursResponse as WorkingHour[];
-      const employees = employeesResponse as Pick<Employee, 'id' | 'vendor_id'>[];
+      if (isServer) {
+        const [whRes, empRes] = await Promise.all([
+          directus.request(readItems('working_hours', { filter: { vendor_id: { _in: vendorIds } }, fields: ['*'], limit: 500 })),
+          directus.request(readItems('employees', { filter: { vendor_id: { _in: vendorIds }, status: { _eq: 'active' } }, fields: ['id', 'vendor_id'], limit: 500 }))
+        ]);
+        workingHours = whRes as WorkingHour[];
+        employees = empRes as Pick<Employee, 'id' | 'vendor_id'>[];
+      } else {
+        const [whRes, empRes] = await Promise.all([
+          fetch(`/api/vendors/enrichment?type=working_hours&vendorIds=${vendorIds.join(',')}`, { cache: 'no-store' }),
+          fetch(`/api/vendors/enrichment?type=employees&vendorIds=${vendorIds.join(',')}`, { cache: 'no-store' })
+        ]);
+        workingHours = whRes.ok ? (await whRes.json()).data || [] : [];
+        employees = empRes.ok ? (await empRes.json()).data || [] : [];
+      }
       const employeeIds = employees.map((employee) => employee.id);
 
       let employeeServices: EmployeeService[] = [];
       if (employeeIds.length > 0) {
-        const employeeServicesResponse = await directus.request(
-          readItems('employee_services', {
-            filter: {
-              employee_id: { _in: employeeIds },
-              is_active: { _eq: true }
-            },
+        if (isServer) {
+          const res = await directus.request(readItems('employee_services', {
+            filter: { employee_id: { _in: employeeIds }, is_active: { _eq: true } },
             fields: ['id', 'employee_id', 'name', 'price', 'is_active', 'description', 'duration_minutes', 'sort_order'],
             sort: ['sort_order'],
             limit: 1000
-          })
-        );
-        employeeServices = employeeServicesResponse as EmployeeService[];
+          }));
+          employeeServices = res as EmployeeService[];
+        } else {
+          const res = await fetch(`/api/vendors/enrichment?type=employee_services&employeeIds=${employeeIds.join(',')}`, { cache: 'no-store' });
+          employeeServices = res.ok ? (await res.json()).data || [] : [];
+        }
       }
 
       const employeeVendorMap = new Map(employees.map((employee) => [employee.id, employee.vendor_id]));

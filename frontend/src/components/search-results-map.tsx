@@ -113,6 +113,15 @@ export function SearchResultsMap({ vendors, userLocation, fullBleed }: SearchRes
             attribution: '&copy; OpenStreetMap contributors',
             maxZoom: 19,
           }).addTo(leafletMapRef.current);
+          
+          // NEW: Watch for container size changes (fix for sliding animation)
+          const resizeObserver = new ResizeObserver(() => {
+            if (leafletMapRef.current) {
+              console.log("[Map Debug] Container resized, invalidating map size");
+              leafletMapRef.current.invalidateSize();
+            }
+          });
+          resizeObserver.observe(mapRef.current);
         }
 
         // Mandatory size refresh for animated containers
@@ -126,6 +135,7 @@ export function SearchResultsMap({ vendors, userLocation, fullBleed }: SearchRes
 
         const bounds = L.latLngBounds([]);
         vendorsWithCoordinates.forEach((vendor) => {
+          console.log(`[Map Debug] Placing marker for ${vendor.name} at ${vendor.latitude}, ${vendor.longitude}`);
           const marker = L.circleMarker([vendor.latitude, vendor.longitude], {
             radius: 7,
             color: "#ffffff",
@@ -148,11 +158,10 @@ export function SearchResultsMap({ vendors, userLocation, fullBleed }: SearchRes
           bounds.extend([vendor.latitude, vendor.longitude]);
         });
 
-        // Small delay to allow container transition to finish
+        // Increase delay to allow container transition to fully finish
         setTimeout(() => {
             if (cancelled || !leafletMapRef.current) return;
             
-            // Re-verify size before fitting bounds
             leafletMapRef.current.invalidateSize();
 
             if (vendorsWithCoordinates.length === 1) {
@@ -160,7 +169,7 @@ export function SearchResultsMap({ vendors, userLocation, fullBleed }: SearchRes
             } else if (vendorsWithCoordinates.length > 1) {
               leafletMapRef.current.fitBounds(bounds, { padding: [100, 100], maxZoom: 13, animate: true });
             }
-        }, 150);
+        }, 500); 
       }
 
       setupMap().catch((error) => console.error("Failed to map:", error));
