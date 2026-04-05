@@ -45,7 +45,7 @@ services:
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - PUBLIC_URL=${PUBLIC_URL}
       - CORS_ENABLED=true
-      - CORS_ORIGIN=http://144.91.113.237
+      - CORS_ORIGIN=${CORS_ORIGIN}
       - CORS_METHODS=GET,POST,PATCH,DELETE,OPTIONS
       - CORS_ALLOWED_HEADERS=Content-Type,Authorization
       - CORS_CREDENTIALS=true

@@ -86,71 +86,77 @@ INSERT INTO employee_services (id, employee_id, name, price, duration_minutes, i
 INSERT INTO employee_schedules (id, employee_id, day_of_week, start_time, end_time, is_closed)
 SELECT gen_random_uuid(), e.id, d, '09:00:00', '21:00:00', false FROM employees e cross join generate_series(0, 6) d;
 
--- 6. PERMISSIONS (ABSOLUTE TRANSPRANCY NATIVE DIRECTUS 11)
+-- 6. PERMISSIONS (DYNAMIC DIRECTUS 11 POLICY REPAIR)
 DO $$ 
 DECLARE
-    -- The Collections that form the core of the Marketplace + CORE SYSTEM (Absolute)
+    -- Collections that form the core of the Marketplace
     read_collections text[] := ARRAY[
         'vendors', 'categories', 'employees', 'locations', 'reviews', 
         'working_hours', 'directus_files', 'directus_folders', 
         'vendor_categories', 'employee_services', 'employee_schedules', 'bookings',
-        'directus_collections', 'directus_fields', 'directus_relations', 'directus_presets', 'directus_shares', 'directus_roles', 'directus_activity'
+        'directus_collections', 'directus_fields', 'directus_relations', 'directus_presets'
     ];
     -- Interactions permitted for public visitors
-    create_collections text[] := ARRAY['reviews', 'employee_reviews', 'bookings', 'contacts'];
+    create_collections text[] := ARRAY['reviews', 'bookings'];
     
-    p record;
+    target_policy_id uuid;
     v_id_type text;
     coll text;
-    applied_count int := 0;
 BEGIN
-    -- 1. DETECT PERMISSION TABLE SCHEMA (Smart ID Prevention)
+    -- 1. DETECT PERMISSION TABLE SCHEMA (UUID vs Integer)
     SELECT data_type INTO v_id_type 
     FROM information_schema.columns 
     WHERE table_name = 'directus_permissions' AND column_name = 'id';
 
-    RAISE NOTICE 'Detected directus_permissions.id type: %', v_id_type;
+    -- 2. IDENTIFY PUBLIC POLICY
+    -- Strategy: Find the policy linked to the 'Public' role
+    SELECT a.policy INTO target_policy_id
+    FROM directus_access a
+    LEFT JOIN directus_roles r ON a.role = r.id
+    WHERE r.name = 'Public' OR r.id = '192df901-9d32-45ec-9b4e-60faf5feac5c'
+    LIMIT 1;
 
-    -- 2. ITERATE EVERY NON-ADMIN POLICY (Universal Repair)
-    -- We grant to EVERY policy that isn't for Administrators to ensure Total Coverage
-    FOR p IN SELECT id, name FROM directus_policies WHERE admin_access = false LOOP
+    -- Fallback: Use any policy that is not Admin and not already used by another known role
+    IF target_policy_id IS NULL THEN
+        SELECT id INTO target_policy_id FROM directus_policies WHERE admin_access = false AND app_access = false LIMIT 1;
+    END IF;
+
+    IF target_policy_id IS NOT NULL THEN
+        RAISE NOTICE 'Targeting Policy: %', target_policy_id;
+
+        -- Cleanup existing to avoid duplicates on these specific collections
+        DELETE FROM directus_permissions WHERE policy = target_policy_id AND collection = ANY(read_collections);
+
+        -- Grant Read
+        FOREACH coll IN ARRAY read_collections LOOP
+            IF v_id_type = 'integer' THEN
+                INSERT INTO directus_permissions (policy, collection, action, permissions, validation, fields)
+                VALUES (target_policy_id, coll, 'read', '{}', '{}', ARRAY['*']);
+            ELSE
+                INSERT INTO directus_permissions (id, policy, collection, action, permissions, validation, fields)
+                VALUES (gen_random_uuid(), target_policy_id, coll, 'read', '{}', '{}', ARRAY['*']);
+            END IF;
+        END LOOP;
+
+        -- Grant Create
+        FOREACH coll IN ARRAY create_collections LOOP
+            IF v_id_type = 'integer' THEN
+                INSERT INTO directus_permissions (policy, collection, action, permissions, validation, fields)
+                VALUES (target_policy_id, coll, 'create', '{}', '{}', ARRAY['*']);
+            ELSE
+                INSERT INTO directus_permissions (id, policy, collection, action, permissions, validation, fields)
+                VALUES (gen_random_uuid(), target_policy_id, coll, 'create', '{}', '{}', ARRAY['*']);
+            END IF;
+        END LOOP;
         
-        RAISE NOTICE 'Repairing Policy: % (%)', p.name, p.id;
-
-        -- Cleanup existing to avoid duplicates
-        DELETE FROM directus_permissions WHERE policy = p.id AND collection = ANY(read_collections) AND action = 'read';
-        DELETE FROM directus_permissions WHERE policy = p.id AND collection = ANY(create_collections) AND action = 'create';
-
-        IF v_id_type = 'integer' THEN
-            -- Insertion for Serial/Integer IDs
-            FOREACH coll IN ARRAY read_collections LOOP
-                INSERT INTO directus_permissions (policy, collection, action, permissions, validation, fields)
-                VALUES (p.id, coll, 'read', '{}', '{}', ARRAY['*']);
-            END LOOP;
-            FOREACH coll IN ARRAY create_collections LOOP
-                INSERT INTO directus_permissions (policy, collection, action, permissions, validation, fields)
-                VALUES (p.id, coll, 'create', '{}', '{}', ARRAY['*']);
-            END LOOP;
-        ELSE
-            -- Insertion for UUID IDs
-            FOREACH coll IN ARRAY read_collections LOOP
-                INSERT INTO directus_permissions (id, policy, collection, action, permissions, validation, fields)
-                VALUES (gen_random_uuid(), p.id, coll, 'read', '{}', '{}', ARRAY['*']);
-            END LOOP;
-            FOREACH coll IN ARRAY create_collections LOOP
-                INSERT INTO directus_permissions (id, policy, collection, action, permissions, validation, fields)
-                VALUES (gen_random_uuid(), p.id, coll, 'create', '{}', '{}', ARRAY['*']);
-            END LOOP;
-        END IF;
-
-        applied_count := applied_count + 1;
-    END LOOP;
+        RAISE NOTICE 'Success: Permissions granted to policy %', target_policy_id;
+    ELSE
+        RAISE WARNING 'Could not identify a Public policy to repair.';
+    END IF;
 
     -- 3. ENSURE ALL ITEMS ARE ACTIVE
     UPDATE vendors SET status = 'active' WHERE status IS NULL OR status != 'active';
     UPDATE categories SET status = 'active' WHERE status IS NULL OR status != 'active';
-    
-    RAISE NOTICE 'SUCCESS: Absolute transparency granted across % policies.', applied_count;
 END $$;
 
 -- Locations Seeding

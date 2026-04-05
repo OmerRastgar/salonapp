@@ -151,6 +151,9 @@ if (isServer) {
 }
 
 console.log(`[Directus] Initializing SDK on ${isServer ? 'SERVER' : 'CLIENT'} with URL: "${finalUrl}"`);
+console.log(`[Directus] Environment vars - PUBLIC: "${publicUrl}", INTERNAL: "${internalUrl}"`);
+
+
 const directus = createDirectus(finalUrl).with(rest());
 
 export class SimpleDirectusService {
