@@ -118,7 +118,7 @@ SECRET=9a4f7c2e8b1d5f6a3c9e0b7d4f8a2c5e9b1d6f3a7c0e4b8d2f5a9c1e7b3d6f
 
 # Admin
 ADMIN_EMAIL=admin@saloonmarketplace.com
-ADMIN_PASSWORD=Admin@2024!Secure#Access
+ADMIN_PASSWORD=process.env.ADMIN_PASSWORD
 
 # URLs
 PUBLIC_URL=http://localhost:8055

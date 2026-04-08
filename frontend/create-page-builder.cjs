@@ -4,7 +4,7 @@ async function setup() {
 	const client = createDirectus('http://localhost:8055').with(rest());
 	
 	try {
-		await client.login('admin@saloonmarketplace.com', 'Admin@2024!Secure#Access');
+		await client.login('admin@saloonmarketplace.com', 'process.env.ADMIN_PASSWORD');
 		console.log('Logged in successfully');
 
 		// 1. Create Block Collections

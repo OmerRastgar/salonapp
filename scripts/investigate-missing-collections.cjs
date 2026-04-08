@@ -14,7 +14,7 @@ async function investigateMissingCollections() {
         },
         body: JSON.stringify({
           email: 'admin@saloonmarketplace.com',
-          password: 'Admin@2024!Secure#Access'
+          password: process.env.ADMIN_PASSWORD
         })
       });
       
@@ -171,7 +171,7 @@ async function investigateMissingCollections() {
     
     console.log('\n🚀 Recommended Solution:');
     console.log('   1. Manually create collections in Directus Admin');
-    console.log('   2. Use admin@saloonmarketplace.com / Admin@2024!Secure#Access');
+    console.log('   2. Use admin@saloonmarketplace.com / process.env.ADMIN_PASSWORD');
     console.log('   3. Then run seeder to populate data');
     
   } catch (error) {

@@ -55,7 +55,7 @@ All 9 professional images have been uploaded to Directus and are ready for use:
 
 ### **✅ Available Now**
 - **Directus Admin**: http://localhost:8055
-  - Login: admin@saloonmarketplace.com / Admin@2024!Secure#Access
+  - Login: admin@saloonmarketplace.com / process.env.ADMIN_PASSWORD
   - Files section contains all 9 high-resolution images
   - Ready to create collections and assign images
 

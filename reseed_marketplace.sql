@@ -93,8 +93,7 @@ DECLARE
     read_collections text[] := ARRAY[
         'vendors', 'categories', 'employees', 'locations', 'reviews', 
         'working_hours', 'directus_files', 'directus_folders', 
-        'vendor_categories', 'employee_services', 'employee_schedules', 'bookings',
-        'directus_collections', 'directus_fields', 'directus_relations', 'directus_presets'
+        'vendor_categories', 'employee_services', 'employee_schedules'
     ];
     -- Interactions permitted for public visitors
     create_collections text[] := ARRAY['reviews', 'bookings'];

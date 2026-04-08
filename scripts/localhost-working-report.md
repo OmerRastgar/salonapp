@@ -31,7 +31,7 @@
 
 #### **✅ Fully Functional**
 - **Directus Admin Interface**: http://localhost:8055/admin
-  - Login: admin@saloonmarketplace.com / Admin@2024!Secure#Access
+  - Login: admin@saloonmarketplace.com / process.env.ADMIN_PASSWORD
   - All 9 high-resolution images uploaded and accessible
   - Ready to create collections and assign images
 

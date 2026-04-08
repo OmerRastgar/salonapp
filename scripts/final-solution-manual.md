@@ -5,7 +5,7 @@
 ### **✅ What's Working**
 - **Frontend**: http://localhost:3000 ✅ Running
 - **Directus Admin**: http://localhost:8055/admin ✅ Running
-- **Admin Login**: admin@saloonmarketplace.com / Admin@2024!Secure#Access ✅ Working
+- **Admin Login**: admin@saloonmarketplace.com / process.env.ADMIN_PASSWORD ✅ Working
 - **Permissions**: Public and admin permissions ready ✅
 - **Professional Images**: 9 high-resolution images uploaded ✅
 
@@ -20,7 +20,7 @@
 
 1. **Access Directus Admin**
    - Go to http://localhost:8055/admin
-   - Login: admin@saloonmarketplace.com / Admin@2024!Secure#Access
+   - Login: admin@saloonmarketplace.com / process.env.ADMIN_PASSWORD
 
 2. **Create Collections**
    - Click **Settings** (gear icon) in left menu

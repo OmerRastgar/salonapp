@@ -1,6 +1,6 @@
 /**
  * Admin Credentials:
- * admin@saloonmarketplace.com / Admin@2024!Secure#Access
+ * admin@saloonmarketplace.com / process.env.ADMIN_PASSWORD
  */
 
 const ENVS = [
@@ -9,7 +9,7 @@ const ENVS = [
 ];
 
 const ADMIN_EMAIL = 'admin@saloonmarketplace.com';
-const ADMIN_PASSWORD = 'Admin@2024!Secure#Access';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
 const NEW_VENDOR_EMAIL = 'vendor@saloon.com';
 const NEW_VENDOR_PASSWORD = 'Vendor123!';

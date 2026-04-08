@@ -4,7 +4,7 @@ async function fix() {
     const loginRes = await fetch('http://localhost:8055/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'admin@saloonmarketplace.com', password: 'Admin@2024!Secure#Access' })
+      body: JSON.stringify({ email: 'admin@saloonmarketplace.com', password: 'process.env.ADMIN_PASSWORD' })
     });
     const token = (await loginRes.json()).data.access_token;
     const headers = { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' };

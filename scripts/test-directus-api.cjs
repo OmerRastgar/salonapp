@@ -32,7 +32,7 @@ async function testDirectusAPI() {
         },
         body: JSON.stringify({
           email: 'admin@saloonmarketplace.com',
-          password: 'Admin@2024!Secure#Access'
+          password: process.env.ADMIN_PASSWORD
         })
       });
       

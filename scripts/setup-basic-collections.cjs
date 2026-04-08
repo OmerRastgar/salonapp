@@ -16,7 +16,7 @@ async function setupBasicCollections() {
         },
         body: JSON.stringify({
           email: 'admin@saloonmarketplace.com',
-          password: 'Admin@2024!Secure#Access'
+          password: process.env.ADMIN_PASSWORD
         })
       });
       
@@ -100,7 +100,7 @@ async function testDirectusConnection() {
         },
         body: JSON.stringify({
           email: 'admin@saloonmarketplace.com',
-          password: 'Admin@2024!Secure#Access'
+          password: process.env.ADMIN_PASSWORD
         })
       });
       
@@ -179,7 +179,7 @@ async function createMinimalCollections() {
         },
         body: JSON.stringify({
           email: 'admin@saloonmarketplace.com',
-          password: 'Admin@2024!Secure#Access'
+          password: process.env.ADMIN_PASSWORD
         })
       });
       

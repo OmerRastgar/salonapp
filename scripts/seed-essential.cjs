@@ -1,9 +1,9 @@
-﻿const fs = require('fs');
+const fs = require('fs');
 const path = require('path');
 
 async function seedEssential() {
   try {
-    console.log('🌱 Seeding essential collections and data...\n');
+    console.log('?? Seeding essential collections and data...\n');
     
     // Fixed UUIDs for images
     const LOGO_MAP = { 
@@ -20,14 +20,14 @@ async function seedEssential() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         email: 'admin@saloonmarketplace.com',
-        password: 'Admin@2024!Secure#Access'
+        password: process.env.ADMIN_PASSWORD
       })
     });
     
     const loginData = await loginResponse.json();
     const token = loginData.data.access_token;
     const authHeaders = { 'Authorization': 'Bearer ' + token };
-    console.log('   ✅ Admin login successful');
+    console.log('   ? Admin login successful');
 
     // --- NEW: Physical Image Restoration Section ---
     console.log('\n2. Restoring physical image files...');
@@ -54,7 +54,7 @@ async function seedEssential() {
           headers: authHeaders,
           body: formData
         });
-        console.log('     ✅ Restored: ' + filename + ' (ID: ' + id + ')');
+        console.log('     ? Restored: ' + filename + ' (ID: ' + id + ')');
       }
     }
 
@@ -74,7 +74,7 @@ async function seedEssential() {
           headers: { ...authHeaders, 'Content-Type': 'application/json' },
           body: JSON.stringify(collection)
         });
-        console.log('     ✅ Created: ' + collection.collection);
+        console.log('     ? Created: ' + collection.collection);
       } catch (e) {}
     }
 
@@ -101,7 +101,7 @@ async function seedEssential() {
           policy: policyId
         })
       });
-      console.log('     ✅ Granted read: ' + col);
+      console.log('     ? Granted read: ' + col);
     }
 
     // Add Basic Data
@@ -123,12 +123,12 @@ async function seedEssential() {
           body: JSON.stringify(item)
         });
       }
-      console.log('     ✅ Seeded: ' + col);
+      console.log('     ? Seeded: ' + col);
     }
 
-    console.log('\n🎉 Nuclear Re-Seed Complete! Images are physically restored and publicly viewable.');
+    console.log('\n?? Nuclear Re-Seed Complete! Images are physically restored and publicly viewable.');
   } catch (error) {
-    console.error('❌ Seeding failed:', error.message);
+    console.error('? Seeding failed:', error.message);
   }
 }
 

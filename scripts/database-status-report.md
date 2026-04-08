@@ -35,7 +35,7 @@ $env:DB_DATABASE="postgres"
 $env:KEY="7f3b9c2e6a8d1f5e9b4c0a3d7e8f2a6b9c1d5e8f0a3b7c2d6e9f1a4b8c3d7e2f"
 $env:SECRET="9a4f7c2e8b1d5f6a3c9e0b7d4f8a2c5e9b1d6f3a7c0e4b8d2f5a9c1e7b3d6f"
 $env:ADMIN_EMAIL="admin@saloonmarketplace.com"
-$env:ADMIN_PASSWORD="Admin@2024!Secure#Access"
+$env:ADMIN_PASSWORD="process.env.ADMIN_PASSWORD"
 $env:PUBLIC_URL="http://localhost:8055"
 $env:DIRECTUS_URL="http://localhost:8055"
 $env:NEXT_PUBLIC_DIRECTUS_URL="http://localhost:8055"
@@ -82,7 +82,7 @@ services:
       DB_USER: admin
       DB_PASSWORD: K8$mN#pL2@qR9vW5!zX
       ADMIN_EMAIL: admin@saloonmarketplace.com
-      ADMIN_PASSWORD: Admin@2024!Secure#Access
+      ADMIN_PASSWORD: process.env.ADMIN_PASSWORD
       PUBLIC_URL: http://localhost:8055
       CORS_ORIGIN: 'http://localhost:3000,http://localhost:80'
       REFRESH_TOKEN_COOKIE_DOMAIN: 'localhost'

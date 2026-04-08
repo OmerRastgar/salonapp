@@ -32,7 +32,7 @@ services:
       DB_USER: 'admin'
       DB_PASSWORD: 'K8$mN#pL2@qR9vW5!zX'
       ADMIN_EMAIL: 'admin@saloonmarketplace.com'
-      ADMIN_PASSWORD: 'Admin@2024!Secure#Access'
+      ADMIN_PASSWORD: 'process.env.ADMIN_PASSWORD'
       PUBLIC_URL: 'http://localhost:8055'
       CORS_ENABLED: 'true'
       CORS_ORIGIN: 'http://localhost:3000,http://localhost:80'
@@ -67,7 +67,7 @@ services:
       NEXT_PUBLIC_DIRECTUS_URL: http://localhost:8055
       DIRECTUS_INTERNAL_URL: 'http://directus:8055'
       ADMIN_EMAIL: admin@saloonmarketplace.com
-      ADMIN_PASSWORD: Admin@2024!Secure#Access
+      ADMIN_PASSWORD: process.env.ADMIN_PASSWORD
     ports:
       - "3000:3000"
     depends_on:

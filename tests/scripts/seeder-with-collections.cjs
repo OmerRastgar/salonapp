@@ -5,7 +5,7 @@ const path = require('path');
 // Directus API configuration
 const DIRECTUS_URL = 'http://localhost:8055';
 const ADMIN_EMAIL = 'admin@saloonmarketplace.com';
-const ADMIN_PASSWORD = 'Admin@2024!Secure#Access';
+const ADMIN_PASSWORD = 'process.env.ADMIN_PASSWORD';
 
 // Helper function to make Directus API requests
 async function directusRequest(endpoint, options = {}) {

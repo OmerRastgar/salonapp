@@ -10,7 +10,7 @@
 
 const DIRECTUS_URL = 'http://localhost:8055';
 const ADMIN_EMAIL = 'admin@saloonmarketplace.com';
-const ADMIN_PASSWORD = 'Admin@2024!Secure#Access';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
 async function setup() {
   console.log('🚀 Starting Vendor Access Configuration (D11 Mode)...\n');

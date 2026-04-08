@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
       "filter[start_datetime][_lte]": end,
       "filter[status][_nin]": "cancelled",
       sort: "start_datetime",
-      fields: "id,employee_id,vendor_id,employee_service_id,booker_email,booker_name,start_datetime,end_datetime,status,amount,notes,created_at",
+      fields: "id,employee_id,vendor_id,employee_service_id,start_datetime,end_datetime,status,amount,notes,created_at",
       limit: "-1",
     });
 

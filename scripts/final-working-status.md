@@ -112,7 +112,7 @@ All 9 high-resolution images are uploaded and ready:
 ### **Final Access Points:**
 - **Frontend Application**: http://localhost:3000
 - **Directus Admin**: http://localhost:8055/admin
-  - Login: admin@saloonmarketplace.com / Admin@2024!Secure#Access
+  - Login: admin@saloonmarketplace.com / process.env.ADMIN_PASSWORD
   - Files section contains all 9 professional images
 - **Database**: localhost:5432 (PostgreSQL)
 

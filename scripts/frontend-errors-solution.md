@@ -110,7 +110,7 @@ CREATE TABLE vendors (...);
 
 ### **Step 1: Manual Collection Creation (5 minutes)**
 1. Go to http://localhost:8055/admin
-2. Login: admin@saloonmarketplace.com / Admin@2024!Secure#Access
+2. Login: admin@saloonmarketplace.com / process.env.ADMIN_PASSWORD
 3. Navigate to **Settings → Data Model**
 4. Click **+ Collection** and create:
    - `locations`

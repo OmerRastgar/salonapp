@@ -14,7 +14,7 @@ async function diagnoseSeeder() {
         },
         body: JSON.stringify({
           email: 'admin@saloonmarketplace.com',
-          password: 'Admin@2024!Secure#Access'
+          password: process.env.ADMIN_PASSWORD
         })
       });
       
@@ -175,7 +175,7 @@ async function diagnoseSeeder() {
     } else {
       console.log('   ❌ Create missing collections first in Directus Admin');
       console.log('   📍 Admin URL: http://localhost:8055/admin');
-      console.log('   🔑 Login: admin@saloonmarketplace.com / Admin@2024!Secure#Access');
+      console.log('   🔑 Login: admin@saloonmarketplace.com / process.env.ADMIN_PASSWORD');
     }
     
   } catch (error) {

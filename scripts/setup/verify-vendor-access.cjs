@@ -8,7 +8,7 @@
 
 const DIRECTUS_URL = 'http://144.91.113.237:8055';
 const ADMIN_EMAIL = 'admin@saloonmarketplace.com';
-const ADMIN_PASSWORD = 'Admin@2024!Secure#Access';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
 async function verify() {
   console.log('🧪 Starting Verification...\n');

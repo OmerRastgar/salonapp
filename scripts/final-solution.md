@@ -52,7 +52,7 @@ If you prefer to use the new admin user:
 
 #### **Step 1: Create Collections**
 1. Go to http://localhost:8055/admin
-2. Login with admin@saloonmarketplace.com / Admin@2024!Secure#Access
+2. Login with admin@saloonmarketplace.com / process.env.ADMIN_PASSWORD
 3. Go to **Settings → Data Model**
 4. Create these collections:
 

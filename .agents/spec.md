@@ -201,10 +201,97 @@ Calendar Layout – as you mentioned, for viewing bookings.
 
 This specification is complete. All business logic, automation, and reporting reside inside Directus. Only the customer‑facing booking page requires custom frontend development.
 
-Would you like me to now produce any of the following:
+10. Frontend UI Specifications
 
-JSON import files for the collections and fields
+This section documents the UI layout rules for all customer-facing pages. These MUST be preserved whenever any page is modified. If a rule is changed, update this section to match.
 
-Flow JSON configurations for direct import
+10.1 Search Page (/search)
 
-Ready‑to‑paste React booking page code (with service selection and slot logic)
+Layout Model: Viewport-locked split layout. No page-level scroll ever appears.
+
+Structure:
+- Outer wrapper: `h-screen flex flex-col overflow-hidden` — locks the page to the viewport
+- Header: `flex-shrink-0` — sticky, never collapses
+- Main: `flex flex-1 overflow-hidden` — fills remaining height exactly, clips children
+
+Left column (Vendor List):
+- `overflow-y-auto` — ONLY this element scrolls
+- When map hidden: `w-full`
+- When map visible: `lg:w-[50%] xl:w-[45%]` with `transition-all duration-500 ease-in-out`
+
+Right column (Map Panel) — desktop only:
+- Visible at `lg` breakpoint and above (`hidden lg:block`)
+- `flex-shrink-0 h-full` — fills full viewport height, never compresses
+- Width: `w-[50%] xl:w-[55%]`
+- Map div must have `min-height: 500px` so Leaflet never initialises against a zero-height container
+- `invalidateSize()` must be called at 550ms AND 900ms after mount to fix marker placement after the entry animation
+
+Map entry animation (desktop):
+- Uses `AnimatePresence` from `motion/react`
+- Animate in: `opacity 0→1`, `x: 60→0`, duration `0.4s`
+- Animate out: reverse
+
+Mobile map:
+- Toggle button: `fixed bottom-10 left-1/2 lg:hidden`
+- Overlay: `fixed inset-0 z-50`, animates in from bottom (`y: 100%→0`)
+
+Map marker rules:
+- Render `circleMarker` for vendors with valid lat/lng
+- Skip vendors with coordinates at or near `0, 0`
+- On fit: `fitBounds` with `padding: [60, 60]`, `maxZoom: 13`
+- Popup contains: vendor name, address, "View Salon" link
+
+Critical layout classes — do not remove these without updating this spec:
+
+| Element        | Required classes                          | Purpose                          |
+|----------------|-------------------------------------------|----------------------------------|
+| Outer wrapper  | `h-screen overflow-hidden`                | Prevents page-level scroll       |
+| Header         | `flex-shrink-0`                           | Prevents header collapse         |
+| `<main>`       | `flex flex-1 overflow-hidden`             | Fills remaining height           |
+| Vendor list    | `overflow-y-auto`                         | Only scrollable element          |
+| Map container  | `flex-shrink-0 h-full`                    | Full-height, non-compressible    |
+| Map div        | `min-height: 500px`                       | Leaflet init needs real height   |
+
+10.2 API Data Access Pattern
+
+All Directus reads from the browser MUST go through Next.js API proxy routes, never directly to Directus. This is because the Directus Public role has no read permissions — all reads require the server-side `DIRECTUS_TOKEN`.
+
+Proxy routes:
+- `GET /api/vendors` — vendor list with filtering
+- `GET /api/vendors/enrichment` — working hours, employees, employee services
+- `GET /api/categories` — category list
+- `GET /api/locations` — location list
+
+Server-side reads (SSR) use the `directus` SDK client in `directus-simple.ts` which has `staticToken` attached via `DIRECTUS_TOKEN`.
+
+Client-side reads use `fetch('/api/...')` — the token never reaches the browser.
+
+10.2.1 Data Privacy (PII Protection)
+Public API routes (like `GET /api/bookings`) MUST NEVER return personally identifiable information (PII) such as `booker_name` or `booker_email` to unauthenticated users. These fields must be explicitly excluded from the `fields` parameter in the proxy route.
+
+`NEXT_PUBLIC_DIRECTUS_URL` must always point to the Nginx gateway (port 80). Never port 8055.
+
+10.3 Environment Variable Checklist (verify before every deploy)
+
+| Variable                  | Required value                        | How to verify                                              |
+|---------------------------|---------------------------------------|------------------------------------------------------------|
+| `DIRECTUS_TOKEN`          | Real token registered in DB           | `curl http://localhost:8055/users/me -H "Authorization: Bearer <token>"` |
+| `NEXT_PUBLIC_DIRECTUS_URL`| `http://<ip>` (no port 8055)          | Check `.env`                                               |
+| `DIRECTUS_INTERNAL_URL`   | `http://directus:8055`                | Check `.env`                                               |
+| Container env             | Token present in running container    | `docker compose exec frontend env | grep DIRECTUS_TOKEN`   |
+
+11. Security Specifications
+
+11.1 Infrastructure & Network
+- **Postgres Isolation**: The database port (`5432`) MUST NOT be exposed to the host machine in `docker-compose.yml`. Use internal Docker networking for service communication.
+- **Nginx Hardening**: 
+    - **Rate Limiting**: Implement `limit_req_zone` (e.g., 10r/s) in `nginx.conf` for all backend and frontend paths.
+    - **Restricted CORS**: Always use specific origin allow-lists (e.g., matching the server IP/domain) instead of the wildcard `*` in Nginx headers.
+    - **Security Headers**: Ensure `X-Frame-Options: SAMEORIGIN`, `X-Content-Type-Options: nosniff`, and `Strict-Transport-Security` are set.
+
+11.2 Credential Management
+- **No Hardcoded Secrets**: All administrative credentials (e.g., `ADMIN_PASSWORD`) MUST be accessed via environment variables (`process.env`). Never commit cleartext passwords to the repository or hardcode them in maintenance scripts.
+
+11.3 Data Privacy
+- **Principle of Least Privilege**: The Directus `Public` role must have the absolute minimum permissions required for basic site browsing. High-sensitivity collections like `bookings` must be excluded from public read access.
+- **PII Sanitization**: Any API endpoint that serves historical data (like `/api/bookings`) must filter out customer contact details before sending the response to the client.

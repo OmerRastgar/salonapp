@@ -5,7 +5,7 @@
 
 const DIRECTUS_URL = 'http://localhost:8055';
 const ADMIN_EMAIL = 'admin@saloonmarketplace.com';
-const ADMIN_PASSWORD = 'Admin@2024!Secure#Access';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
 const VENDOR_ROLE_ID = 'e913c6f5-ef79-48c4-b6f5-23153303e91a';
 const VENDOR_DASHBOARD_ID = 'c48966cb-288d-41e3-9c96-39682c34097c';

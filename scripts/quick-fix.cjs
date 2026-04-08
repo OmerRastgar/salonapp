@@ -14,7 +14,7 @@ async function quickFix() {
         },
         body: JSON.stringify({
           email: 'admin@saloonmarketplace.com',
-          password: 'Admin@2024!Secure#Access'
+          password: process.env.ADMIN_PASSWORD
         })
       });
       
@@ -53,7 +53,7 @@ async function quickFix() {
         if (missingCollections.length > 0) {
           console.log('\n   ⚠️  SOLUTION NEEDED:');
           console.log('   1. Go to http://localhost:8055/admin');
-          console.log('   2. Login: admin@saloonmarketplace.com / Admin@2024!Secure#Access');
+          console.log('   2. Login: admin@saloonmarketplace.com / process.env.ADMIN_PASSWORD');
           console.log('   3. Go to Settings → Data Model');
           console.log('   4. Create these collections: ' + missingCollections.join(', '));
           console.log('   5. Add basic fields (name, slug, status)');
