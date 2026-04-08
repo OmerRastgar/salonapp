@@ -11,10 +11,10 @@ function getDirectusClient() {
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { slug: string } }
+  { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
-    const { slug } = params;
+    const { slug } = await params;
     const directus = getDirectusClient();
 
     const response = await directus.request(
