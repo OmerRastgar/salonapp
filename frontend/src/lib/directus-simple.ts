@@ -325,105 +325,53 @@ export class SimpleDirectusService {
 
   static async getVendorBySlug(slug: string) {
     try {
+      // Client-side: use proxy route so token stays server-side
+      if (!isServer) {
+        const res = await fetch(`/api/vendor/${encodeURIComponent(slug)}`, { cache: 'no-store' });
+        if (!res.ok) {
+          if (res.status === 404) return null;
+          throw new Error(`Vendor fetch failed: ${res.status}`);
+        }
+        const payload = await res.json();
+        return payload.data as Vendor | null;
+      }
+
+      // Server-side: call Directus directly with token
       const response = await directus.request(
         readItems('vendors', {
-          filter: {
-            slug: { _eq: slug },
-            status: { _eq: 'active' }
-          },
-          fields: [
-            '*', 
-            'categories.categories_id.*',
-            'working_hours.*',
-            'reviews.*'
-          ],
+          filter: { slug: { _eq: slug }, status: { _eq: 'active' } },
+          fields: ['*', 'categories.categories_id.*', 'working_hours.*', 'reviews.*'],
           limit: 1
         })
       );
       const vendor = response[0] as Vendor | null;
-      console.log(`[SimpleDirectusService] Fetched vendor by slug "${slug}":`, vendor ? vendor.name : 'Not Found', vendor?.id);
-      
-      if (!vendor) {
-        return null;
-      }
+      if (!vendor) return null;
 
-      const [workingHoursResponse, reviewsResponse] = await Promise.all([
-        directus.request(
-          readItems('working_hours', {
-            filter: { vendor_id: { _eq: vendor.id } },
-            fields: ['*'],
-            sort: ['day_of_week'],
-            limit: 50
-          })
-        ),
-        directus.request(
-          readItems('reviews', {
-            filter: { vendor_id: { _eq: vendor.id } },
-            fields: ['*'],
-            sort: ['-created_at'],
-            limit: 100
-          })
-        )
+      const [workingHoursResponse, reviewsResponse, employeesResponse] = await Promise.all([
+        directus.request(readItems('working_hours', { filter: { vendor_id: { _eq: vendor.id } }, fields: ['*'], sort: ['day_of_week'], limit: 50 })),
+        directus.request(readItems('reviews', { filter: { vendor_id: { _eq: vendor.id } }, fields: ['*'], sort: ['-created_at'], limit: 100 })),
+        directus.request(readItems('employees', { filter: { vendor_id: { _eq: vendor.id }, status: { _eq: 'active' } }, fields: ['id'], limit: 100 }))
       ]);
 
-      const employeesResponse = await directus.request(
-        readItems('employees', {
-          filter: {
-            vendor_id: { _eq: vendor.id },
-            status: { _eq: 'active' }
-          },
-          fields: ['id'],
-          limit: 100
-        })
-      );
-
-      const employeeIds = (employeesResponse as Pick<Employee, 'id'>[]).map((employee) => employee.id);
+      const employeeIds = (employeesResponse as Pick<Employee, 'id'>[]).map((e) => e.id);
       let services: Service[] = [];
 
-      // 3. AGGREGATE SERVICES FROM INDIVIDUAL EMPLOYEES
-      let employeeServicesResponse: EmployeeService[] = [];
       if (employeeIds.length > 0) {
-        const response = await directus.request(
+        const empServices = await directus.request(
           readItems('employee_services', {
-            filter: {
-              employee_id: { _in: employeeIds },
-              is_active: { _eq: true }
-            },
+            filter: { employee_id: { _in: employeeIds }, is_active: { _eq: true } },
             fields: ['id', 'employee_id', 'name', 'price', 'description', 'duration_minutes', 'sort_order', 'is_active'],
             sort: ['sort_order'],
             limit: 500
           })
         );
-        employeeServicesResponse = response as EmployeeService[];
+        const seen = new Set<string>();
+        services = (empServices as EmployeeService[])
+          .filter((s) => { if (seen.has(s.name)) return false; seen.add(s.name); return true; })
+          .map((s) => ({ id: s.id, vendor_id: vendor.id, name: s.name, description: s.description || '', duration: s.duration_minutes, price: Number(s.price), is_popular: false, status: s.is_active ? 'active' : 'inactive', sort_order: s.sort_order || 0 }));
       }
 
-      const seenNames = new Set<string>();
-      services = employeeServicesResponse
-        .filter((service) => {
-          if (seenNames.has(service.name)) return false;
-          seenNames.add(service.name);
-          return true;
-        })
-        .map((service) => ({
-          id: service.id,
-          vendor_id: vendor.id,
-          name: service.name,
-          description: service.description || '',
-          duration: service.duration_minutes,
-          price: Number(service.price),
-          is_popular: false,
-          status: service.is_active ? 'active' : 'inactive',
-          sort_order: service.sort_order || 0
-        }));
-
-      console.log(`[SimpleDirectusService] Mapped ${services.length} services for vendor ${vendor.name}`, services);
-
-      return {
-        ...vendor,
-        working_hours: workingHoursResponse as WorkingHour[],
-        reviews: reviewsResponse as Review[],
-        services
-      };
+      return { ...vendor, working_hours: workingHoursResponse as WorkingHour[], reviews: reviewsResponse as Review[], services };
     } catch (error) {
       console.error('Error in getVendorBySlug:', error);
       return null;
@@ -510,58 +458,41 @@ export class SimpleDirectusService {
 
   static async getSearchLocations(): Promise<SearchLocationOption[]> {
     try {
-      const [locationsResponse, vendorsResponse] = await Promise.all([
-        directus.request(
-          readItems('locations', {
-            filter: { status: { _eq: 'active' } },
-            sort: ['sort_order'],
-            fields: ['id', 'name', 'slug']
-          })
-        ),
-        directus.request(
-          readItems('vendors', {
-            filter: { status: { _eq: 'active' } },
-            fields: ['id', 'city', 'area'],
-            sort: ['city', 'area'],
-            limit: 500
-          })
-        )
-      ]);
+      let locationsRaw: Location[] = [];
+      let vendorsRaw: Pick<Vendor, 'city' | 'area'>[] = [];
+
+      if (!isServer) {
+        const res = await fetch('/api/search-locations', { cache: 'no-store' });
+        if (res.ok) {
+          const payload = await res.json();
+          locationsRaw = payload.locations || [];
+          vendorsRaw = payload.vendors || [];
+        }
+      } else {
+        const [lr, vr] = await Promise.all([
+          directus.request(readItems('locations', { filter: { status: { _eq: 'active' } }, sort: ['sort_order'], fields: ['id', 'name', 'slug'] })),
+          directus.request(readItems('vendors', { filter: { status: { _eq: 'active' } }, fields: ['id', 'city', 'area'], sort: ['city', 'area'], limit: 500 }))
+        ]);
+        locationsRaw = lr as Location[];
+        vendorsRaw = vr as Pick<Vendor, 'city' | 'area'>[];
+      }
 
       const options = new Map<string, SearchLocationOption>();
 
-      (locationsResponse as Location[]).forEach((location) => {
+      locationsRaw.forEach((location) => {
         const city = location.name.trim();
-        options.set(`city:${city.toLowerCase()}`, {
-          value: city,
-          label: city,
-          city
-        });
+        options.set(`city:${city.toLowerCase()}`, { value: city, label: city, city });
       });
 
-      (vendorsResponse as Pick<Vendor, 'city' | 'area'>[]).forEach((vendor) => {
+      vendorsRaw.forEach((vendor) => {
         const city = vendor.city?.trim();
         const area = vendor.area?.trim();
-        if (!city) {
-          return;
-        }
-
+        if (!city) return;
         if (!options.has(`city:${city.toLowerCase()}`)) {
-          options.set(`city:${city.toLowerCase()}`, {
-            value: city,
-            label: city,
-            city
-          });
+          options.set(`city:${city.toLowerCase()}`, { value: city, label: city, city });
         }
-
         if (area) {
-          const key = `area:${area.toLowerCase()}::${city.toLowerCase()}`;
-          options.set(key, {
-            value: `${area}||${city}`,
-            label: `${area}, ${city}`,
-            city,
-            area
-          });
+          options.set(`area:${area.toLowerCase()}::${city.toLowerCase()}`, { value: `${area}||${city}`, label: `${area}, ${city}`, city, area });
         }
       });
 
